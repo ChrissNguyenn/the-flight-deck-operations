@@ -4417,3 +4417,305 @@ body {
         font-size: 16px;
     }
 }
+
+/* ============================================================
+   STORM WATCH — page tabs + global severe weather
+   ============================================================ */
+.fd-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 10px 18px;
+    background-color: var(--taskbar-bg);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.fd-tab {
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-sub);
+    background: var(--airbus-card);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 8px 18px;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.fd-tab:hover {
+    border-color: #4da6ff;
+    color: var(--text-main);
+}
+
+.fd-tab.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #0066d6 0%, #00838f 100%);
+    border-color: #4da6ff;
+}
+
+/* ---- tropical cyclone cards ---- */
+.tc-card {
+    background-color: var(--airbus-card);
+    border: 1px solid #5e35b1;
+    border-left: 6px solid #7c4dff;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+.tc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.tc-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.tc-issued {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #b388ff;
+}
+
+.tc-grid {
+    margin-bottom: 8px;
+}
+
+.tc-text {
+    display: none;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-sub);
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.tc-text.open {
+    display: block;
+}
+
+/* ---- SIGMET filters + cards ---- */
+.sig-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.sig-chip {
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text-sub);
+    background: var(--airbus-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 6px 14px;
+    cursor: pointer;
+}
+
+.sig-chip.active {
+    color: #ffffff;
+    background: #5e35b1;
+    border-color: #7c4dff;
+}
+
+.sig-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+}
+
+.sig-card {
+    background-color: var(--airbus-card);
+    border: 1px solid var(--border-color);
+    border-left-width: 6px;
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+}
+
+.sig-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sig-hz {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 2px 10px;
+    background-color: #607d8b;
+}
+
+.sig-fir {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.sig-meta {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-sub);
+    margin-top: 5px;
+}
+
+.sig-raw {
+    display: none;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-sub);
+    border-top: 1px dashed var(--border-color);
+    margin-top: 8px;
+    padding-top: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.sig-card.open .sig-raw {
+    display: block;
+}
+
+/* hazard accents (left border + chip) */
+.sig-card.hz-tc  { border-left-color: #e91e63; }
+.sig-card.hz-ts  { border-left-color: #ff5252; }
+.sig-card.hz-turb { border-left-color: #ffb300; }
+.sig-card.hz-ice { border-left-color: #4dd0e1; }
+.sig-card.hz-mtw { border-left-color: #b388ff; }
+.sig-card.hz-va  { border-left-color: #a1887f; }
+
+.hz-tc .sig-hz,  .sig-chip.hz-tc.active  { background-color: #e91e63; }
+.hz-ts .sig-hz,  .sig-chip.hz-ts.active  { background-color: #d32f2f; }
+.hz-turb .sig-hz, .sig-chip.hz-turb.active { background-color: #e68600; }
+.hz-ice .sig-hz, .sig-chip.hz-ice.active { background-color: #00838f; }
+.hz-mtw .sig-hz, .sig-chip.hz-mtw.active { background-color: #7c4dff; }
+.hz-va .sig-hz,  .sig-chip.hz-va.active  { background-color: #6d4c41; }
+
+/* ---- image grids (world satellite, charts, storm graphics) ---- */
+.storm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.storm-fig img {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: #0c0f13;
+    cursor: zoom-in;
+    display: block;
+}
+
+.storm-fig .sat-cap {
+    margin-top: 4px;
+}
+
+/* ---- Windy map ---- */
+.storm-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.storm-chip {
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-sub);
+    background: var(--airbus-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 6px 14px;
+    cursor: pointer;
+}
+
+.storm-chip.active {
+    color: #ffffff;
+    background: #c62828;
+    border-color: #ff5252;
+}
+
+.windy-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    min-height: 320px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    background-color: #0c0f13;
+}
+
+.windy-wrap iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+/* ---- day mode ---- */
+:root.light-mode .tc-text {
+    background-color: #f2f4f6;
+}
+
+:root.light-mode .storm-fig img {
+    background-color: #f2f4f6;
+}
+
+/* ---- compact phones ---- */
+@media (max-width: 640px) {
+    .fd-tabs {
+        padding: 8px 12px;
+    }
+
+    .fd-tab {
+        font-size: 12px;
+        padding: 7px 14px;
+    }
+
+    .sig-list {
+        grid-template-columns: 1fr;
+    }
+
+    .storm-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .windy-wrap {
+        aspect-ratio: 4 / 5;
+        min-height: 380px;
+    }
+}

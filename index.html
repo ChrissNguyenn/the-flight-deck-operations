@@ -42,6 +42,14 @@
         </div>
     </header>
 
+    <!-- page tabs — QRH style -->
+    <nav class="fd-tabs">
+        <button class="fd-tab active" data-page="vn-weather"
+            onclick="fdShowPage('vn-weather', this)">🌦️ VN Weather</button>
+        <button class="fd-tab" data-page="storm-watch"
+            onclick="fdShowPage('storm-watch', this)">🌀 Storm Watch</button>
+    </nav>
+
     <div class="main-container">
         <div id="vn-weather" class="page-content active">
 
@@ -84,6 +92,102 @@
                         (JMA, new frame every 10 minutes) — infrared, visible and enhanced IR.
                         Tap an image to zoom. Additional local imagery is added automatically
                         when it becomes available.</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ============ STORM WATCH — global severe weather ============ -->
+        <div id="storm-watch" class="page-content">
+
+            <div class="tab-banner" style="background-color: #5e35b1; color: #ffffff;">
+                🌀 Global Storm Watch</div>
+
+            <div class="metar-toolbar">
+                <div class="sched-status" id="stormStatus" style="flex:1;">Loading storm data…</div>
+                <button class="sched-refresh-btn" onclick="stormLoad(true)">⟳ Refresh</button>
+            </div>
+
+            <!-- Tropical cyclones: JTWC + NHC -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🌀 Active Tropical Cyclones</span>
+                    <span class="collapsible-arrow" style="color: #b388ff;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="tc-list" id="tcList"></div>
+                    <div class="efb-note">↳ JTWC (NW Pacific · Indian Ocean · S Hemisphere) and
+                        NHC (Atlantic · E Pacific). The warning graphic is the official forecast
+                        track &amp; intensity; the warning text carries the 12–120 h trend.
+                        Tap any image to zoom.</div>
+                </div>
+            </div>
+
+            <!-- SIGMETs worldwide -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>⚠️ SIGMET Warnings — Worldwide</span>
+                    <span class="collapsible-arrow" style="color: #ffb300;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="sig-filters" id="sigFilters"></div>
+                    <div class="sig-list" id="sigList"></div>
+                    <div class="efb-note">↳ In-force international SIGMETs — high-level significant
+                        weather warnings per FIR: thunderstorms, tropical cyclones, severe
+                        turbulence, icing, mountain waves and volcanic ash, with flight levels and
+                        validity. Tap a warning to read the raw SIGMET.</div>
+                </div>
+            </div>
+
+            <!-- world satellite -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🛰️ World Satellite</span>
+                    <span class="collapsible-arrow" style="color: #0088cc;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="storm-grid" id="worldSat"></div>
+                    <div class="efb-note">↳ Full-disk geostationary imagery: Himawari-9
+                        (Asia–Pacific), GOES-19 East (Americas–Atlantic), GOES-18 West (Pacific).
+                        New frames every 10 minutes. Tap to zoom.</div>
+                </div>
+            </div>
+
+            <!-- analysis / outlook charts -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🗺️ Analysis &amp; Outlook Charts</span>
+                    <span class="collapsible-arrow" style="color: #00d666;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="storm-grid" id="stormCharts"></div>
+                    <div class="efb-note">↳ Ocean Prediction Center surface analyses (fronts,
+                        lows, storm centres), NHC 7-day tropical outlooks and the JTWC significant
+                        tropical weather advisory for the West Pacific. Tap to zoom.</div>
+                </div>
+            </div>
+
+            <!-- live radar / storm map -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>📡 Live Radar &amp; Storm Map</span>
+                    <span class="collapsible-arrow" style="color: #ff5252;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="storm-chips">
+                        <button class="storm-chip active" onclick="stormOverlay('radar', this)">📡 Radar</button>
+                        <button class="storm-chip" onclick="stormOverlay('satellite', this)">🛰 Satellite</button>
+                        <button class="storm-chip" onclick="stormOverlay('rain', this)">🌧 Rain</button>
+                        <button class="storm-chip" onclick="stormOverlay('pressure', this)">🌐 Pressure</button>
+                        <button class="storm-chip" onclick="stormOverlay('wind', this)">💨 Wind</button>
+                    </div>
+                    <div class="windy-wrap">
+                        <iframe id="windyFrame" title="Windy storm map" frameborder="0"
+                            loading="lazy" src="about:blank"></iframe>
+                    </div>
+                    <div class="efb-note">↳ Interactive world map (Windy) — composite weather
+                        radar where coverage exists, live satellite, rain accumulation, MSLP and
+                        wind. Drag / pinch to explore any region.</div>
                 </div>
             </div>
 
@@ -882,6 +986,302 @@
             } catch (e) { }
         }
 
+        /* ============================================================
+           STORM WATCH — global severe weather (data/storms.json is
+           committed by the Actions loop: intl SIGMETs + NHC + JTWC)
+           ============================================================ */
+        const STORM_POLL_MS = 300000;       // storm data re-sync every 5 min
+        let stormData = null, stormInited = false;
+
+        function fdShowPage(id, btn) {
+            document.querySelectorAll('.page-content').forEach(p =>
+                p.classList.toggle('active', p.id === id));
+            document.querySelectorAll('.fd-tab').forEach(b =>
+                b.classList.toggle('active', b === btn));
+            try { localStorage.setItem('fd-page', id); } catch (e) { }
+            if (id === 'storm-watch') stormInit();
+        }
+
+        // Heavy world imagery + the Windy iframe load only on first open
+        function stormInit() {
+            if (stormInited) return;
+            stormInited = true;
+            stormStatics();
+            stormLoad(true);
+            setInterval(stormLoad, STORM_POLL_MS);
+        }
+
+        function stormImg(parent, src, caption) {
+            const fig = document.createElement('div');
+            fig.className = 'storm-fig';
+            const img = document.createElement('img');
+            img.loading = 'lazy';
+            img.src = src;
+            img.alt = caption;
+            img.onclick = function () {
+                document.getElementById('satZoomImg').src = src;
+                document.getElementById('satZoom').classList.add('show');
+            };
+            img.onerror = function () { fig.remove(); };
+            const cap = document.createElement('div');
+            cap.className = 'sat-cap';
+            cap.textContent = caption;
+            fig.appendChild(img);
+            fig.appendChild(cap);
+            parent.appendChild(fig);
+        }
+
+        const WINDY_BASE = 'https://embed.windy.com/embed2.html?lat=15&lon=112' +
+            '&zoom=4&level=surface&menu=&message=&marker=&calendar=now' +
+            '&pressure=true&type=map&location=coordinates&metricWind=kt' +
+            '&metricTemp=%C2%B0C&radarRange=-1&overlay=';
+
+        function stormOverlay(kind, btn) {
+            document.getElementById('windyFrame').src = WINDY_BASE + kind;
+            document.querySelectorAll('.storm-chip').forEach(b =>
+                b.classList.toggle('active', b === btn));
+        }
+
+        function stormStatics() {
+            // Himawari-9 full disk (same 10-min cycle / 30-min latency
+            // margin the VN satellite panel uses)
+            const t = new Date(Date.now() - 30 * 60000);
+            const hhmm = String(t.getUTCHours()).padStart(2, '0') +
+                String(Math.floor(t.getUTCMinutes() / 10) * 10).padStart(2, '0');
+            const bucket = Math.floor(Date.now() / 600000);   // 10-min cache key
+            const sat = document.getElementById('worldSat');
+            sat.innerHTML = '';
+            stormImg(sat, 'https://www.data.jma.go.jp/mscweb/data/himawari/img/fd_/fd__b13_' +
+                hhmm + '.jpg', 'Himawari-9 · Asia–Pacific IR · ' + hhmm + 'Z');
+            stormImg(sat, 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/GEOCOLOR/1808x1808.jpg?t=' +
+                bucket, 'GOES-19 East · Americas–Atlantic (GeoColor)');
+            stormImg(sat, 'https://cdn.star.nesdis.noaa.gov/GOES18/ABI/FD/GEOCOLOR/1808x1808.jpg?t=' +
+                bucket, 'GOES-18 West · Pacific (GeoColor)');
+
+            const ch = document.getElementById('stormCharts');
+            ch.innerHTML = '';
+            [['https://ocean.weather.gov/P_sfc_full_ocean_color.png',
+              'Surface analysis · Pacific (OPC) — fronts & lows'],
+             ['https://ocean.weather.gov/A_sfc_full_ocean_color.png',
+              'Surface analysis · Atlantic (OPC) — fronts & lows'],
+             ['https://www.metoc.navy.mil/jtwc/products/abpwsair.jpg',
+              'JTWC significant tropical weather · W Pacific'],
+             ['https://www.nhc.noaa.gov/xgtwo/two_pac_7d0.png',
+              'NHC 7-day tropical outlook · E Pacific'],
+             ['https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png',
+              'NHC 7-day tropical outlook · Atlantic'],
+             ['https://aviationweather.gov/data/products/progs/F000_wpc_sfc.gif',
+              'WPC surface prognosis · N America']
+            ].forEach(c => stormImg(ch, c[0] + (c[0].indexOf('?') < 0 ? '?t=' + bucket : ''), c[1]));
+
+            document.getElementById('windyFrame').src = WINDY_BASE + 'radar';
+        }
+
+        async function stormLoad(manual) {
+            const status = document.getElementById('stormStatus');
+            if (manual) {
+                status.className = 'sched-status';
+                status.textContent = 'Loading storm data…';
+            }
+            let payload = null;
+            if (location.protocol === 'http:' || location.protocol === 'https:') {
+                const urls = [
+                    'https://raw.githubusercontent.com/ChrissNguyenn/the-flight-deck-operations/main/data/storms.json',
+                    'data/storms.json'
+                ];
+                const results = await Promise.all(urls.map(u =>
+                    schedFetchJSON(u + '?t=' + Date.now(), 12000).catch(() => null)));
+                results.forEach(c => {
+                    if (c && c.sigmets && (!payload ||
+                        new Date(c.updated || 0) > new Date(payload.updated || 0))) payload = c;
+                });
+            }
+            if (!payload) {                 // offline development preview
+                payload = {
+                    updated: null,
+                    sigmets: [{ fir: 'SAMPLE FIR', hazard: 'TS', qual: 'EMBD', base: null,
+                        top: 35000, from: 0, to: 9e12, series: 'X01',
+                        raw: 'OFFLINE PREVIEW — storm feed unreachable' }],
+                    nhc: [],
+                    jtwc: [{ title: 'Sample Typhoon Warning (offline preview)', issued: null,
+                        gif: null, ir: null, textUrl: null, text: null }]
+                };
+            }
+            stormData = payload;
+            tcRender();
+            sigRender();
+            if (!payload.updated) {
+                status.className = 'sched-status mock';
+                status.textContent = '◌ OFFLINE PREVIEW — sample storm data';
+            } else {
+                const when = new Date(payload.updated);
+                const ageMin = Math.round((Date.now() - when.getTime()) / 60000);
+                const n = (stormData.nhc || []).length + (stormData.jtwc || []).length;
+                status.className = 'sched-status' + (ageMin > 45 ? ' mock' : ' live');
+                status.textContent = (ageMin > 45 ? '⚠ DATA ' + ageMin + ' MIN OLD — ' : '● LIVE — ') +
+                    (stormData.sigmets || []).length + ' SIGMETs · ' + n +
+                    ' tropical system' + (n === 1 ? '' : 's') + ' · ' +
+                    when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+        }
+
+        function tcRender() {
+            const list = document.getElementById('tcList');
+            list.innerHTML = '';
+            const jtwc = stormData.jtwc || [], nhc = stormData.nhc || [];
+            if (!jtwc.length && !nhc.length) {
+                const none = document.createElement('div');
+                none.className = 'efb-note';
+                none.textContent = '↳ No active tropical cyclones in the JTWC or NHC areas right now.';
+                list.appendChild(none);
+                return;
+            }
+            jtwc.forEach(st => {
+                const card = document.createElement('div');
+                card.className = 'tc-card';
+                const head = document.createElement('div');
+                head.className = 'tc-head';
+                const title = document.createElement('span');
+                title.className = 'tc-title';
+                title.textContent = st.title;
+                head.appendChild(title);
+                if (st.issued) {
+                    const when = document.createElement('span');
+                    when.className = 'tc-issued';
+                    when.textContent = 'Issued ' + st.issued;
+                    head.appendChild(when);
+                }
+                card.appendChild(head);
+                if (st.gif || st.ir) {
+                    const grid = document.createElement('div');
+                    grid.className = 'storm-grid tc-grid';
+                    if (st.gif) stormImg(grid, st.gif, 'Forecast track & intensity (JTWC warning graphic)');
+                    if (st.ir) stormImg(grid, st.ir, 'IR satellite — storm close-up');
+                    card.appendChild(grid);
+                }
+                if (st.text) {
+                    const btn = document.createElement('button');
+                    btn.className = 'wx-rep-toggle';
+                    btn.textContent = 'WARNING TEXT — POSITION / FORECAST TREND ▾';
+                    const pre = document.createElement('pre');
+                    pre.className = 'tc-text';
+                    pre.textContent = st.text;
+                    btn.onclick = function () {
+                        const open = pre.classList.toggle('open');
+                        btn.textContent = 'WARNING TEXT — POSITION / FORECAST TREND ' + (open ? '▴' : '▾');
+                    };
+                    card.appendChild(btn);
+                    card.appendChild(pre);
+                }
+                list.appendChild(card);
+            });
+            nhc.forEach(st => {
+                const card = document.createElement('div');
+                card.className = 'tc-card';
+                const head = document.createElement('div');
+                head.className = 'tc-head';
+                const title = document.createElement('span');
+                title.className = 'tc-title';
+                title.textContent = (st.class || '') + ' ' + (st.name || '');
+                head.appendChild(title);
+                const meta = document.createElement('span');
+                meta.className = 'tc-issued';
+                meta.textContent = (st.intensity ? st.intensity + ' kt · ' : '') +
+                    (st.pressure ? st.pressure + ' hPa · ' : '') +
+                    (st.moveDir !== null && st.moveDir !== undefined
+                        ? 'moving ' + st.moveDir + '° @ ' + st.moveSpd + ' kt' : '');
+                head.appendChild(meta);
+                card.appendChild(head);
+                if (st.cone) {
+                    const grid = document.createElement('div');
+                    grid.className = 'storm-grid tc-grid';
+                    stormImg(grid, st.cone, 'NHC forecast cone — track & wind field');
+                    card.appendChild(grid);
+                }
+                list.appendChild(card);
+            });
+        }
+
+        // SIGMET hazard order + labels for the filter chips
+        const SIG_HAZARDS = [
+            ['TC', '🌀 TC'], ['TS', '⛈ TS'], ['TURB', '💨 TURB'],
+            ['ICE', '🧊 ICE'], ['MTW', '🏔 MTW'], ['VA', '🌋 VA']
+        ];
+        let sigFilter = 'ALL';
+
+        function sigSetFilter(f, btn) {
+            sigFilter = f;
+            document.querySelectorAll('.sig-chip').forEach(b =>
+                b.classList.toggle('active', b === btn));
+            sigRenderList();
+        }
+
+        function sigRender() {
+            const bar = document.getElementById('sigFilters');
+            bar.innerHTML = '';
+            const sigs = stormData.sigmets || [];
+            const counts = {};
+            sigs.forEach(s => { counts[s.hazard] = (counts[s.hazard] || 0) + 1; });
+            const mk = (key, label, count) => {
+                const b = document.createElement('button');
+                b.className = 'sig-chip' + (sigFilter === key ? ' active' : '') +
+                    (key === 'ALL' ? '' : ' hz-' + key.toLowerCase());
+                b.textContent = label + ' ' + count;
+                b.onclick = function () { sigSetFilter(key, b); };
+                bar.appendChild(b);
+            };
+            mk('ALL', 'ALL', sigs.length);
+            SIG_HAZARDS.forEach(h => { if (counts[h[0]]) mk(h[0], h[1], counts[h[0]]); });
+            if (sigFilter !== 'ALL' && !counts[sigFilter]) sigFilter = 'ALL';
+            sigRenderList();
+        }
+
+        function sigFL(v, dflt) {
+            return (v === null || v === undefined) ? dflt : 'FL' + Math.round(v / 100);
+        }
+
+        function sigRenderList() {
+            const list = document.getElementById('sigList');
+            list.innerHTML = '';
+            const order = { TC: 0, TS: 1, TURB: 2, ICE: 3, MTW: 4, VA: 5 };
+            (stormData.sigmets || [])
+                .filter(s => sigFilter === 'ALL' || s.hazard === sigFilter)
+                .sort((a, b) => (order[a.hazard] ?? 9) - (order[b.hazard] ?? 9) ||
+                    String(a.fir).localeCompare(String(b.fir)))
+                .forEach(s => {
+                    const card = document.createElement('div');
+                    card.className = 'sig-card hz-' + String(s.hazard || 'x').toLowerCase();
+                    const head = document.createElement('div');
+                    head.className = 'sig-head';
+                    const hz = document.createElement('span');
+                    hz.className = 'sig-hz';
+                    hz.textContent = (s.qual ? s.qual + ' ' : '') + (s.hazard || '?');
+                    const fir = document.createElement('span');
+                    fir.className = 'sig-fir';
+                    fir.textContent = s.fir || '';
+                    head.appendChild(hz);
+                    head.appendChild(fir);
+                    card.appendChild(head);
+                    const meta = document.createElement('div');
+                    meta.className = 'sig-meta';
+                    const fmt = t => {
+                        const d = new Date(t * 1000);
+                        return String(d.getUTCDate()).padStart(2, '0') + '/' +
+                            String(d.getUTCHours()).padStart(2, '0') +
+                            String(d.getUTCMinutes()).padStart(2, '0') + 'Z';
+                    };
+                    meta.textContent = sigFL(s.base, 'SFC') + ' – ' + sigFL(s.top, '—') +
+                        (s.from && s.to ? ' · valid ' + fmt(s.from) + ' → ' + fmt(s.to) : '');
+                    card.appendChild(meta);
+                    const raw = document.createElement('div');
+                    raw.className = 'sig-raw';
+                    raw.textContent = s.raw || '';
+                    card.appendChild(raw);
+                    card.onclick = function () { card.classList.toggle('open'); };
+                    list.appendChild(card);
+                });
+        }
+
         // ---- init ----
         document.addEventListener('DOMContentLoaded', function () {
             let saved = null;
@@ -892,6 +1292,12 @@
             metarLoad();
             setInterval(metarLoad, SCHED_POLL_MS);
             document.getElementById('metarSearch').addEventListener('input', metarRender);
+            let page = null;
+            try { page = localStorage.getItem('fd-page'); } catch (e) { }
+            if (page === 'storm-watch') {
+                fdShowPage('storm-watch',
+                    document.querySelector('.fd-tab[data-page="storm-watch"]'));
+            }
         });
     </script>
 </body>
