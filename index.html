@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>THE FLIGHT DECK — OPERATIONS</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✈️</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <header class="fd-header">
+        <div class="fd-brand">
+            <span class="fd-plane">✈</span>
+            <div>
+                <div class="fd-title">THE FLIGHT DECK</div>
+                <div class="fd-sub">OPERATIONS · VIETNAM WEATHER</div>
+            </div>
+        </div>
+        <div class="fd-tools">
+            <div>
+                <div class="fd-clock" id="fdClock">--:--:--</div>
+                <div class="fd-utc" id="fdUtc">----Z</div>
+            </div>
+            <button class="fd-theme-btn" id="fdThemeBtn" onclick="fdToggleTheme()"
+                title="Day / dark mode">☾</button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div id="vn-weather" class="page-content active">
+
+            <div class="tab-banner" style="background-color: #00838f; color: #ffffff;">
+                🌦️ Real Vietnam Weather</div>
+
+            <div class="metar-toolbar">
+                <input type="search" class="metar-search" id="metarSearch"
+                    placeholder="Search ICAO — VVTS, VVDN…" maxlength="4" autocomplete="off"
+                    autocapitalize="characters">
+                <button class="sched-refresh-btn" onclick="metarLoad(true)">⟳ Refresh Weather</button>
+            </div>
+
+            <div class="sched-status" id="metarStatus">Loading weather…</div>
+            <div class="metar-list" id="metarList"></div>
+
+            <div class="efb-note">↳ Flight rules:
+                <span style="color:#00d666;font-weight:700;">VFR</span> ·
+                <span style="color:#4da6ff;font-weight:700;">MVFR</span> ·
+                <span style="color:#ff5252;font-weight:700;">IFR</span> ·
+                <span style="color:#c86bff;font-weight:700;">LIFR</span>.
+                <span class="speci-badge" style="margin-left:6px;">SPECI</span> = special report
+                (significant change). Weather auto-refreshes every 5 minutes.</div>
+
+            <!-- ===== SATELLITE IMAGERY ===== -->
+            <div class="efb-card sat-panel">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🛰️ Satellite Imagery</span>
+                    <span class="collapsible-arrow" style="color: #0088cc;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <button class="sat-fetch-btn" onclick="satFetch()">🛰️ Fetch Satellite Data</button>
+                    <div class="sched-status" id="satStatus" style="margin-top: 10px;"></div>
+                    <div class="sat-carousel" id="satCarousel"></div>
+                    <div class="efb-note">↳ Live Himawari-9 geostationary imagery over Vietnam
+                        (JMA, new frame every 10 minutes) — infrared, visible and enhanced IR.
+                        Tap an image to zoom. Additional local imagery is added automatically
+                        when it becomes available.</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Fullscreen overlays live at body level: position:fixed inside the
+         animated/scrolling page container breaks on iOS Safari — here they
+         always cover the real viewport, wherever the list is scrolled -->
+    <div class="sat-zoom" id="satZoom" onclick="this.classList.remove('show')">
+        <img id="satZoomImg" src="" alt="Satellite image zoom">
+    </div>
+
+    <div class="wx-detail" id="wxDetail"
+        onclick="if (event.target === this) this.classList.remove('show')">
+        <div class="wx-sheet">
+            <button class="wx-close"
+                onclick="document.getElementById('wxDetail').classList.remove('show')">✕</button>
+            <div id="wxSheetBody"></div>
+        </div>
+    </div>
+
+    <script>
+        // ========== SHELL: collapsibles, fetch helper, theme, clock ==========
+        function toggleCollapsible(element) {
+            element.classList.toggle('open');
+            if (window.navigator.vibrate) {
+                window.navigator.vibrate(15);
+            }
+        }
+
+        async function schedFetchJSON(url, timeoutMs) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+            try {
+                const res = await fetch(url, { signal: ctrl.signal });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return await res.json();
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        const SCHED_POLL_MS = 300000;       // weather re-sync every 5 minutes
+
+        function fdApplyTheme(light) {
+            document.documentElement.classList.toggle('light-mode', light);
+            document.body.classList.toggle('light-mode', light);
+            const b = document.getElementById('fdThemeBtn');
+            if (b) b.textContent = light ? '☾' : '☀';
+            try { localStorage.setItem('fd-theme', light ? 'day' : 'dark'); } catch (e) { }
+        }
+
+        function fdToggleTheme() {
+            fdApplyTheme(!document.body.classList.contains('light-mode'));
+        }
+
+        function fdClockTick() {
+            const now = new Date();
+            const p = x => String(x).padStart(2, '0');
+            document.getElementById('fdClock').textContent =
+                p(now.getHours()) + ':' + p(now.getMinutes()) + ':' + p(now.getSeconds());
+            document.getElementById('fdUtc').textContent =
+                p(now.getUTCHours()) + p(now.getUTCMinutes()) + 'Z';
+        }
+
+        /* ============================================================
+           VIETNAM METAR WEATHER
+           Sources: /api/weather/vietnam (acuro_bridge, pre-parsed) →
+           aviationweather.gov direct → mock (offline development)
+           ============================================================ */
+
+        // Every Vietnamese civil airport with a METAR station — small fields
+        // appear whenever they report to the international feed
+        const METAR_IDS = ['VVTS', 'VVNB', 'VVDN', 'VVCR', 'VVPQ', 'VVCI',
+            'VVCT', 'VVDL', 'VVBM', 'VVPC', 'VVVH', 'VVPB', 'VVCS', 'VVCA',
+            'VVDB', 'VVDH', 'VVPK', 'VVRG', 'VVCM', 'VVTX', 'VVVD', 'VVTH',
+            'VVGL', 'VVNS', 'VVVT'];
+        const METAR_AWC_URL = 'https://aviationweather.gov/api/data/metar?ids=' +
+            METAR_IDS.join(',') + '&format=json';
+        const METAR_NAMES = {
+            VVTS: 'Tan Son Nhat — Ho Chi Minh City', VVNB: 'Noi Bai — Ha Noi',
+            VVDN: 'Da Nang Intl', VVCR: 'Cam Ranh — Nha Trang',
+            VVPQ: 'Phu Quoc Intl', VVCI: 'Cat Bi — Hai Phong',
+            VVCT: 'Can Tho Intl', VVDL: 'Lien Khuong — Da Lat',
+            VVBM: 'Buon Ma Thuot', VVPC: 'Phu Cat — Quy Nhon',
+            VVVH: 'Vinh', VVPB: 'Phu Bai — Hue',
+            VVCS: 'Con Dao', VVCA: 'Chu Lai',
+            VVDB: 'Dien Bien Phu', VVDH: 'Dong Hoi',
+            VVPK: 'Pleiku', VVRG: 'Rach Gia',
+            VVCM: 'Ca Mau', VVTX: 'Tho Xuan — Thanh Hoa',
+            VVVD: 'Van Don — Quang Ninh', VVTH: 'Dong Tac — Tuy Hoa',
+            VVGL: 'Gia Lam — Ha Noi', VVNS: 'Na San — Son La',
+            VVVT: 'Vung Tau'
+        };
+        // Offline development mock — varied conditions incl. a SPECI + TAF
+        const METAR_MOCK = [
+            {
+                icao: 'VVTS',
+                metar: 'METAR VVTS 090300Z 24012KT 9999 FEW020 SCT100 31/24 Q1008 NOSIG',
+                speci: 'SPECI VVTS 090315Z 24018G30KT 3000 +TSRA BKN012CB 26/24 Q1005',
+                taf: 'TAF VVTS 090500Z 0906/1012 24010KT 8000 SCT015 TEMPO 0906/0912 4000 TSRA BKN010CB',
+                atis: [
+                    { kind: 'ARR', time: 'mock', text: 'VVTS ARR ATIS Y 0300Z. ILSW APCH IN RWY 25R. LDG RWY 25R AND DEP RWY 25L. WIND 240/12KT. QNH 1008.' },
+                    { kind: 'DEP', time: 'mock', text: 'VVTS DEP ATIS C 0300Z. DEP RWY 25L. WIND 240/12KT. QNH 1008.' }
+                ]
+            },
+            {
+                icao: 'VVNB',
+                metar: 'METAR VVNB 090300Z 12004KT 4000 BR BKN008 OVC025 24/23 Q1012 BECMG 6000',
+                speci: null,
+                taf: 'TAF VVNB 090500Z 0906/1012 12005KT 6000 BKN012'
+            },
+            {
+                icao: 'VVDN',
+                metar: 'METAR VVDN 090300Z 27015G25KT 8000 -RA SCT015 BKN030 29/25 Q1006',
+                speci: null,
+                taf: null
+            }
+        ];
+        let metarData = null;
+        let vnBridgeBase = null;            // remembered once the bridge answers
+
+        // Where might acuro_bridge.py (port 8000) live?
+        function vnBridgeCandidates() {
+            const list = [];
+            if (location.protocol === 'http:' || location.protocol === 'https:') {
+                list.push('http://' + location.hostname + ':8000');
+            }
+            ['http://localhost:8000', 'http://127.0.0.1:8000'].forEach(u => {
+                if (list.indexOf(u) < 0) list.push(u);
+            });
+            return list;
+        }
+
+        // Client-side METAR decoder (mirror of acuro_bridge.parse_metar) —
+        // used for the direct-API and mock paths; the bridge pre-parses.
+        function metarParse(raw) {
+            const out = { fltcat: 'UNK', wind: '—', vis: '—', clouds: '—', temp: null, dewp: null, qnh: '—' };
+            if (!raw) return out;
+            const txt = ' ' + raw.trim() + ' ';
+            let m = txt.match(/\s(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)\s/);
+            if (m) {
+                out.wind = (m[1] === 'VRB' ? 'VRB' : m[1] + '°') + ' @ ' + parseInt(m[2], 10) +
+                    (m[4] === 'KT' ? ' kt' : ' m/s') + (m[3] ? ' G' + parseInt(m[3], 10) : '');
+            }
+            let visM = null;
+            if (txt.indexOf(' CAVOK ') >= 0) { out.vis = 'CAVOK'; visM = 10000; }
+            else if ((m = txt.match(/\s(\d{4})\s/))) {
+                visM = parseInt(m[1], 10);
+                out.vis = visM >= 9999 ? '>10 km' : (visM / 1000).toFixed(1) + ' km';
+            } else if ((m = txt.match(/\s(\d{1,2})SM\s/))) {
+                visM = parseInt(m[1], 10) * 1609;
+                out.vis = m[1] + ' SM';
+            }
+            const layers = [];
+            const layerRe = /\b(FEW|SCT|BKN|OVC|VV)(\d{3})(?:CB|TCU)?\b/g;
+            let lm;
+            while ((lm = layerRe.exec(txt)) !== null) layers.push([lm[1], lm[2]]);
+            if (layers.length) out.clouds = layers.map(l => l[0] + l[1]).join(' ');
+            else if (/\s(CAVOK|NSC|SKC|CLR)\s/.test(txt)) out.clouds = 'NSC';
+            if ((m = txt.match(/\s(M?\d{2})\/(M?\d{2})\s/))) {
+                out.temp = parseInt(m[1].replace('M', '-'), 10);
+                out.dewp = parseInt(m[2].replace('M', '-'), 10);
+            }
+            if ((m = txt.match(/\sQ(\d{4})\s/))) out.qnh = parseInt(m[1], 10) + ' hPa';
+            else if ((m = txt.match(/\sA(\d{4})\s/))) out.qnh = Math.round(parseInt(m[1], 10) / 100 * 33.8639) + ' hPa';
+            let ceil = null;
+            layers.forEach(l => {
+                if (l[0] === 'BKN' || l[0] === 'OVC' || l[0] === 'VV') {
+                    const ft = parseInt(l[1], 10) * 100;
+                    ceil = (ceil === null) ? ft : Math.min(ceil, ft);
+                }
+            });
+            if (visM !== null || ceil !== null) {
+                const visSm = visM === null ? 99 : visM / 1609;
+                const c = ceil === null ? 99999 : ceil;
+                out.fltcat = (visSm < 1 || c < 500) ? 'LIFR' :
+                    (visSm < 3 || c < 1000) ? 'IFR' :
+                        (visSm <= 5 || c <= 3000) ? 'MVFR' : 'VFR';
+            }
+            return out;
+        }
+
+        async function metarLoad(manual) {
+            const status = document.getElementById('metarStatus');
+            if (manual) {
+                status.className = 'sched-status';
+                status.textContent = 'Loading weather…';
+            }
+            let payload = null, src = '';
+
+            // 1) acuro_bridge (FastAPI :8000) — full MET feed incl. SPECI/TAF
+            const bases = vnBridgeBase ? [vnBridgeBase] : vnBridgeCandidates();
+            for (let b = 0; b < bases.length && !payload; b++) {
+                try {
+                    payload = await schedFetchJSON(bases[b] + '/api/weather/vietnam', 14000);
+                    vnBridgeBase = bases[b];
+                    src = (payload.source || 'bridge') + ' · bridge';
+                } catch (e) { }
+            }
+            // 2) GitHub auto-update — static weather.json committed every
+            //    30 min by the Actions workflow (works for ALL visitors).
+            //    If the file is older than 60 min (workflow delayed/broken),
+            //    hold it back and let the live public feed try first.
+            let staleStatic = null;
+            if (!payload && (location.protocol === 'http:' || location.protocol === 'https:')) {
+                try {
+                    const cand = await schedFetchJSON('data/weather.json?t=' + Date.now(), 10000);
+                    const ageMin = cand.updated ?
+                        (Date.now() - new Date(cand.updated).getTime()) / 60000 : 0;
+                    if (ageMin <= 60) {
+                        payload = cand;
+                        src = (cand.source || 'VN MET') + ' · GitHub auto-update';
+                    } else {
+                        staleStatic = cand;
+                    }
+                } catch (e) { }
+            }
+            // 3) Aviation Weather API direct (METAR + TAF, big airports only)
+            if (!payload) {
+                try {
+                    const data = await schedFetchJSON(METAR_AWC_URL, 12000);
+                    let tafs = {};
+                    try {
+                        const tafData = await schedFetchJSON(
+                            'https://aviationweather.gov/api/data/taf?ids=' +
+                            METAR_IDS.join(',') + '&format=json', 12000);
+                        tafData.forEach(t => {
+                            if (t.icaoId && t.rawTAF) tafs[t.icaoId] = t.rawTAF;
+                        });
+                    } catch (e) { }
+                    payload = {
+                        stations: data
+                            .filter(i => (i.icaoId || '').indexOf('VV') === 0)
+                            .map(i => {
+                                const st = Object.assign(
+                                    {
+                                        icao: i.icaoId, name: METAR_NAMES[i.icaoId] || i.icaoId,
+                                        metar: i.rawOb || '', speci: null,
+                                        taf: tafs[i.icaoId] || null, raw: i.rawOb || ''
+                                    },
+                                    metarParse(i.rawOb || ''));
+                                if (i.fltCat) st.fltcat = i.fltCat;
+                                return st;
+                            })
+                            .sort((a, b) => a.icao < b.icao ? -1 : 1)
+                    };
+                    src = 'aviationweather.gov · direct';
+                } catch (e) { }
+            }
+            // 3.5) old GitHub data still beats mock data
+            if (!payload && staleStatic) {
+                payload = staleStatic;
+                src = (staleStatic.source || 'VN MET') + ' · GitHub auto-update';
+            }
+            // 4) Offline development mock
+            if (!payload) {
+                payload = {
+                    stations: METAR_MOCK.map(mo => {
+                        const parseSrc = mo.speci || mo.metar;
+                        return Object.assign(
+                            {
+                                icao: mo.icao, name: METAR_NAMES[mo.icao] || mo.icao,
+                                metar: mo.metar, speci: mo.speci, taf: mo.taf,
+                                atis: mo.atis || null, raw: parseSrc
+                            },
+                            metarParse(parseSrc));
+                    })
+                };
+                src = 'mock';
+            }
+
+            metarData = payload;
+            metarRender();
+            if (src === 'mock') {
+                status.className = 'sched-status mock';
+                status.textContent = '◌ OFFLINE PREVIEW — mock weather (sources unreachable)';
+            } else {
+                // Show the DATA's age (matters for the GitHub static file)
+                const when = payload.updated ? new Date(payload.updated) : new Date();
+                const stamp = when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const ageMin = Math.round((Date.now() - when.getTime()) / 60000);
+                if (ageMin > 45) {
+                    status.className = 'sched-status mock';
+                    status.textContent = '⚠ DATA ' + ageMin + ' MIN OLD — ' + src + ' · ' + stamp;
+                } else {
+                    status.className = 'sched-status live';
+                    status.textContent = '● LIVE — ' + src + ' · ' + stamp;
+                }
+            }
+        }
+
+        function metarRender() {
+            const list = document.getElementById('metarList');
+            const q = (document.getElementById('metarSearch').value || '').trim().toUpperCase();
+            list.innerHTML = '';
+            if (!metarData) return;
+            const shown = metarData.stations.filter(s => !q || s.icao.toUpperCase().indexOf(q) >= 0);
+            if (!shown.length) {
+                const none = document.createElement('div');
+                none.className = 'efb-note';
+                none.textContent = '↳ No Vietnam station matches “' + q + '”.';
+                list.appendChild(none);
+                return;
+            }
+            shown.forEach(s => {
+                const cat = String(s.fltcat || 'UNK').toUpperCase();
+                const card = document.createElement('div');
+                card.className = 'metar-card';
+
+                const head = document.createElement('div');
+                head.className = 'metar-head';
+                const idBox = document.createElement('div');
+                idBox.className = 'metar-id';
+                const icao = document.createElement('span');
+                icao.className = 'metar-icao';
+                icao.textContent = s.icao;
+                const name = document.createElement('span');
+                name.className = 'metar-name';
+                name.textContent = s.name || '';
+                idBox.appendChild(icao);
+                idBox.appendChild(name);
+                const pill = document.createElement('span');
+                pill.className = 'metar-cat cat-' + cat.toLowerCase();
+                pill.textContent = cat;
+                head.appendChild(idBox);
+                head.appendChild(pill);
+                card.appendChild(head);
+
+                const grid = document.createElement('div');
+                grid.className = 'metar-grid';
+                const tdp = (s.temp !== null && s.temp !== undefined ? 'T: ' + s.temp + '°C' : 'T: —') +
+                    '  /  ' + (s.dewp !== null && s.dewp !== undefined ? 'DP: ' + s.dewp + '°C' : 'DP: —');
+                [['WND', s.wind], ['VIS', s.vis], ['CLD', s.clouds],
+                 ['T / DP', tdp], ['QNH', s.qnh]].forEach(pair => {
+                    const item = document.createElement('div');
+                    item.className = 'metar-item';
+                    const l = document.createElement('span');
+                    l.className = 'mi-l';
+                    l.textContent = pair[0];
+                    const v = document.createElement('span');
+                    v.className = 'mi-v';
+                    v.textContent = pair[1] || '—';
+                    item.appendChild(l);
+                    item.appendChild(v);
+                    grid.appendChild(item);
+                });
+                card.appendChild(grid);
+
+                // SPECI first — it supersedes the METAR, so it leads the list
+                if (s.speci) {
+                    const speciEl = document.createElement('div');
+                    speciEl.className = 'metar-raw metar-speci';
+                    const badge = document.createElement('span');
+                    badge.className = 'speci-badge';
+                    badge.textContent = 'SPECI';
+                    speciEl.appendChild(badge);
+                    speciEl.appendChild(document.createTextNode(' ' + s.speci));
+                    card.appendChild(speciEl);
+                }
+
+                // normal METAR below it
+                const metarEl = document.createElement('div');
+                metarEl.className = 'metar-raw';
+                metarEl.textContent = s.metar || s.raw || '';
+                card.appendChild(metarEl);
+
+                // TAF — expandable dropdown block
+                if (s.taf) {
+                    const tafBtn = document.createElement('button');
+                    tafBtn.className = 'metar-taf-btn';
+                    tafBtn.textContent = 'TAF ▾';
+                    const tafEl = document.createElement('div');
+                    tafEl.className = 'metar-raw metar-taf';
+                    tafEl.textContent = s.taf;
+                    tafBtn.onclick = function () {
+                        const open = tafEl.classList.toggle('open');
+                        tafBtn.textContent = open ? 'TAF ▴' : 'TAF ▾';
+                    };
+                    card.appendChild(tafBtn);
+                    card.appendChild(tafEl);
+                }
+
+                // ATIS — expandable, live from atis.guru (VVTS/VVNB/VVDN/VVCR)
+                if (s.atis && s.atis.length) {
+                    const atisBtn = document.createElement('button');
+                    atisBtn.className = 'metar-taf-btn metar-atis-btn';
+                    atisBtn.textContent = '📻 ATIS ▾';
+                    const atisEl = document.createElement('div');
+                    atisEl.className = 'metar-raw metar-atis';
+                    s.atis.forEach(a => {
+                        const row = document.createElement('div');
+                        row.className = 'atis-row';
+                        const badge = document.createElement('span');
+                        badge.className = 'atis-badge';
+                        badge.textContent = a.kind;
+                        row.appendChild(badge);
+                        row.appendChild(document.createTextNode(' ' + a.text +
+                            (a.time && a.time !== 'mock' ? '  [' + a.time + ']' : '')));
+                        atisEl.appendChild(row);
+                    });
+                    atisBtn.onclick = function () {
+                        const open = atisEl.classList.toggle('open');
+                        atisBtn.textContent = open ? '📻 ATIS ▴' : '📻 ATIS ▾';
+                    };
+                    card.appendChild(atisBtn);
+                    card.appendChild(atisEl);
+                }
+
+                // Full decoded view (metar-taf style, built from our own data)
+                const linkRow = document.createElement('div');
+                linkRow.className = 'metar-links';
+                const dec = document.createElement('button');
+                dec.className = 'metar-ext-link';
+                dec.textContent = '☰ FULL DECODED REPORT ▸';
+                dec.onclick = function () { wxOpenDetail(s.icao); };
+                linkRow.appendChild(dec);
+                card.appendChild(linkRow);
+
+                // Tapping the card header also opens the decoded view
+                head.style.cursor = 'pointer';
+                head.onclick = function () { wxOpenDetail(s.icao); };
+
+                list.appendChild(card);
+            });
+        }
+
+        /* ============================================================
+           FULL DECODED REPORT — metar-taf.com style visual decode,
+           rendered from our own data (wind compass, cloud diagram,
+           condition tiles, raw reports)
+           ============================================================ */
+        function wxNums(raw) {
+            const txt = ' ' + (raw || '') + ' ';
+            const o = {
+                dir: null, vrb: false, spd: null, gust: null, visM: null,
+                cavok: false, layers: [], temp: null, dewp: null,
+                qnh: null, day: null, time: null
+            };
+            let m = txt.match(/\s(\d{2})(\d{2})(\d{2})Z\s/);
+            if (m) { o.day = m[1]; o.time = m[2] + ':' + m[3]; }
+            m = txt.match(/\s(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\s/);
+            if (m) {
+                o.vrb = m[1] === 'VRB';
+                o.dir = o.vrb ? null : parseInt(m[1], 10);
+                o.spd = parseInt(m[2], 10);
+                o.gust = m[3] ? parseInt(m[3], 10) : null;
+            }
+            if (txt.indexOf(' CAVOK ') >= 0) { o.cavok = true; o.visM = 10000; }
+            else if ((m = txt.match(/\s(\d{4})\s/))) o.visM = parseInt(m[1], 10);
+            else if ((m = txt.match(/\s(\d{1,2})SM\s/))) o.visM = parseInt(m[1], 10) * 1609;
+            const re = /\b(FEW|SCT|BKN|OVC|VV)(\d{3})(CB|TCU)?\b/g;
+            let lm;
+            while ((lm = re.exec(txt)) !== null) {
+                o.layers.push({ cover: lm[1], base: parseInt(lm[2], 10) * 100, cb: lm[3] || '' });
+            }
+            if ((m = txt.match(/\s(M?\d{2})\/(M?\d{2})\s/))) {
+                o.temp = parseInt(m[1].replace('M', '-'), 10);
+                o.dewp = parseInt(m[2].replace('M', '-'), 10);
+            }
+            if ((m = txt.match(/\sQ(\d{4})/))) o.qnh = parseInt(m[1], 10);
+            else if ((m = txt.match(/\sA(\d{4})/))) o.qnh = Math.round(parseInt(m[1], 10) / 100 * 33.8639);
+            return o;
+        }
+
+        function wxHumidity(t, td) {
+            if (t === null || td === null) return null;
+            const es = x => Math.exp((17.625 * x) / (243.04 + x));
+            return Math.min(100, Math.round(100 * es(td) / es(t)));
+        }
+
+        /* Runway designators per airport (verified against published charts).
+           Each entry is one physical runway as [near, far] thresholds. */
+        const WX_RUNWAYS = {
+            VVTS: [['07L', '25R'], ['07R', '25L']],
+            VVNB: [['11L', '29R'], ['11R', '29L']],
+            VVDN: [['17L', '35R'], ['17R', '35L']],
+            VVCR: [['02L', '20R'], ['02R', '20L']],
+            VVCI: [['07', '25']], VVPB: [['09', '27']], VVDH: [['11', '29']],
+            VVVH: [['17', '35']], VVTX: [['13', '31']], VVPC: [['15', '33']],
+            VVTH: [['03', '21']], VVDL: [['09', '27']], VVBM: [['09', '27']],
+            VVPK: [['09', '27']], VVCT: [['06', '24']], VVPQ: [['10', '28']],
+            VVCS: [['11', '29']], VVRG: [['08', '26']], VVCA: [['09', '27']],
+            VVCM: [['09', '27']], VVVD: [['03', '21']], VVDB: [['17', '35']],
+            VVNS: [['12', '30']]
+        };
+
+        function wxCompassSVG(n, icao) {
+            const cards = ['N', 'E', 'S', 'W'].map((L, i) => {
+                const a = i * 90 * Math.PI / 180;
+                const x = 60 + 44 * Math.sin(a), y = 60 - 44 * Math.cos(a);
+                return '<text x="' + x.toFixed(1) + '" y="' + (y + 4).toFixed(1) +
+                    '" class="wxc-card">' + L + '</text>';
+            }).join('');
+            // Runway strip(s) through the centre, chart-style: rotated to the
+            // runway heading, threshold numbers at the ends they belong to.
+            const rwys = WX_RUNWAYS[icao] || [];
+            const runways = rwys.map((rw, i) => {
+                const off = rwys.length > 1 ? (i === 0 ? -8 : 8) : 0;
+                const hdg = parseInt(rw[0], 10) * 10;
+                const cx = 60 + off;
+                return '<g transform="rotate(' + hdg + ' 60 60)">' +
+                    '<rect x="' + (cx - 3.5) + '" y="27" width="7" height="66" rx="1.5" class="wxc-rwy"/>' +
+                    '<line x1="' + cx + '" y1="32" x2="' + cx + '" y2="88" class="wxc-rwy-cl"/>' +
+                    '<text x="' + cx + '" y="24" class="wxc-rwy-id">' + rw[1] + '</text>' +
+                    '<text x="' + cx + '" y="101" class="wxc-rwy-id">' + rw[0] + '</text></g>';
+            }).join('');
+            const arrow = (n.dir === null) ? '' :
+                '<g transform="rotate(' + n.dir + ' 60 60)">' +
+                '<path d="M60 8 L67 26 L60 21 L53 26 Z" class="wxc-arrow"/>' +
+                '<line x1="60" y1="23" x2="60" y2="36" class="wxc-line"/></g>';
+            return '<svg viewBox="0 0 120 120" class="wx-compass" aria-hidden="true">' +
+                '<circle cx="60" cy="60" r="52" class="wxc-ring"/>' + cards + runways +
+                '<circle cx="60" cy="60" r="21" class="wxc-hub"/>' + arrow +
+                '<text x="60" y="58" class="wxc-spd">' + (n.spd !== null ? n.spd : '—') + '</text>' +
+                '<text x="60" y="74" class="wxc-unit">' +
+                (n.vrb ? 'kt · VRB' : 'kt' + (n.gust ? ' G' + n.gust : '')) + '</text></svg>';
+        }
+
+        function wxPuff(x) {
+            return '<g transform="translate(' + x + ',0)" class="wx-cl-puff">' +
+                '<circle cx="7" cy="11" r="5"/><circle cx="12" cy="7.5" r="6"/>' +
+                '<circle cx="17" cy="11" r="5"/><rect x="3" y="9" width="18" height="7" rx="3.5"/></g>';
+        }
+
+        function wxCloudFig(cover) {
+            // sky glyphs — puff count/density mirrors the coverage octas
+            if (cover === 'OVC' || cover === 'VV') {
+                return '<svg viewBox="0 0 64 18" class="wx-cl-svg">' +
+                    '<rect x="1" y="4" width="62" height="12" rx="6" class="wx-cl-band' +
+                    (cover === 'VV' ? ' vv' : '') + '"/></svg>';
+            }
+            const xs = cover === 'FEW' ? [21] : (cover === 'SCT' ? [8, 36] : [1, 21, 41]);
+            return '<svg viewBox="0 0 64 18" class="wx-cl-svg">' +
+                xs.map(wxPuff).join('') + '</svg>';
+        }
+
+        function wxCloudsHTML(n) {
+            if (!n.layers.length) {
+                return '<div class="wx-nocloud">' + (n.cavok ? 'CAVOK ☀' : 'NSC ☀') + '</div>';
+            }
+            const maxft = Math.max(5000, Math.max.apply(null, n.layers.map(l => l.base))) * 1.3;
+            return '<div class="wx-cloud-col">' + n.layers.map(l =>
+                '<div class="wx-cloud-layer cov-' + l.cover.toLowerCase() + (l.cb ? ' cb' : '') +
+                '" style="bottom:' + Math.min(86, (l.base / maxft) * 100).toFixed(0) + '%">' +
+                wxCloudFig(l.cover) +
+                '<span class="wx-cl-txt">' + l.cover + (l.cb ? ' ' + l.cb + ' ⚡' : '') +
+                ' · ' + l.base.toLocaleString() + ' ft</span></div>'
+            ).join('') + '<div class="wx-cloud-gnd"></div></div>';
+        }
+
+        function wxTile(label, big, small) {
+            return '<div class="wx-tile"><div class="wx-tile-label">' + label +
+                '</div><div class="wx-tile-big">' + big + '</div>' +
+                (small ? '<div class="wx-tile-small">' + small + '</div>' : '') + '</div>';
+        }
+
+        function wxOpenDetail(icao) {
+            if (!metarData) return;
+            const s = metarData.stations.find(x => x.icao === icao);
+            if (!s) return;
+            const n = wxNums(s.speci || s.metar || s.raw);
+            const cat = String(s.fltcat || 'UNK').toUpperCase();
+            const rh = wxHumidity(n.temp, n.dewp);
+            const visTxt = n.cavok ? 'CAVOK' :
+                (n.visM === null ? '—' : (n.visM >= 9999 ? '10+ km' : (n.visM / 1000).toFixed(1) + ' km'));
+
+            const body = document.getElementById('wxSheetBody');
+            body.innerHTML =
+                '<div class="wx-head">' +
+                '<div><div class="wx-icao">' + s.icao + '</div>' +
+                '<div class="wx-name"></div>' +
+                '<div class="wx-rwy-note"></div></div>' +
+                '<div class="wx-head-right"><span class="metar-cat cat-' + cat.toLowerCase() + '">' +
+                cat + '</span>' +
+                (n.time ? '<div class="wx-obs">OBS DAY ' + (n.day || '—') + ' · ' + n.time + 'Z</div>' : '') +
+                '</div></div>' +
+                '<div class="wx-widgets">' +
+                '<div class="wx-widget"><div class="wx-tile-label">Wind · Runway</div>' + wxCompassSVG(n, s.icao) + '</div>' +
+                '<div class="wx-widget"><div class="wx-tile-label">Clouds</div>' + wxCloudsHTML(n) + '</div>' +
+                '<div class="wx-tiles">' +
+                wxTile('Visibility', visTxt, '') +
+                wxTile('Temp / Dewpoint',
+                    (n.temp !== null ? n.temp + '°' : '—') + ' / ' + (n.dewp !== null ? n.dewp + '°' : '—'),
+                    rh !== null ? 'Humidity ' + rh + '%' : '') +
+                wxTile('QNH', n.qnh !== null ? n.qnh + ' hPa' : '—',
+                    n.qnh !== null ? (n.qnh * 0.02953).toFixed(2) + ' inHg' : '') +
+                '</div></div>' +
+                '<div class="wx-reports" id="wxReports"></div>';
+            body.querySelector('.wx-name').textContent = s.name || '';
+            const rwys = WX_RUNWAYS[s.icao];
+            body.querySelector('.wx-rwy-note').textContent =
+                rwys ? 'RWY ' + rwys.map(r => r.join('/')).join(' · ') : '';
+
+            // Raw reports appended safely as text nodes.
+            // METAR/SPECI always visible; long TAF/ATIS collapse to one tap
+            // so the whole sheet fits on screen without scrolling.
+            const rep = document.getElementById('wxReports');
+            function addReport(label, text, cls, collapsed) {
+                if (!text) return;
+                const block = document.createElement('div');
+                block.className = 'metar-raw' + (cls ? ' ' + cls : '');
+                const tag = document.createElement('span');
+                tag.className = 'wx-rep-tag';
+                tag.textContent = label;
+                block.appendChild(tag);
+                block.appendChild(document.createTextNode(' ' + text));
+                if (!collapsed) {
+                    rep.appendChild(block);
+                    return;
+                }
+                block.classList.add('wx-rep-hidden');
+                const btn = document.createElement('button');
+                btn.className = 'wx-rep-toggle' + (cls ? ' ' + cls : '');
+                btn.textContent = label + ' ▾';
+                btn.onclick = function () {
+                    const open = block.classList.toggle('open');
+                    btn.textContent = label + (open ? ' ▴' : ' ▾');
+                };
+                rep.appendChild(btn);
+                rep.appendChild(block);
+            }
+            addReport('SPECI', s.speci, 'metar-speci', false);
+            addReport('METAR', s.metar || s.raw, '', false);
+            addReport('TAF', s.taf, '', true);
+            (s.atis || []).forEach(a => addReport('ATIS ' + a.kind, a.text, 'wx-rep-atis', true));
+
+            document.getElementById('wxDetail').classList.add('show');
+        }
+
+        /* ---- Satellite imagery ----
+           Primary: Himawari-9 (JMA) — public geostationary imagery over
+           Vietnam, new frame every 10 minutes, loads directly in the
+           browser (works on GitHub Pages, LAN and offline-from-file).
+           Local MET imagery is appended too whenever it exists
+           (that source is currently under construction). */
+        const HIMAWARI_SETS = [
+            ['se1', 'b13', 'Infrared'],
+            ['se1', 'b03', 'Visible'],
+            ['se1', 'snd', 'Enhanced IR'],
+            ['se2', 'b13', 'Infrared — SE Asia 2']
+        ];
+
+        function satAddImage(car, src, caption) {
+            const fig = document.createElement('div');
+            fig.className = 'sat-fig';
+            const img = document.createElement('img');
+            img.className = 'sat-img';
+            img.loading = 'lazy';
+            img.src = src;
+            img.alt = caption;
+            img.onclick = function () {
+                document.getElementById('satZoomImg').src = src;
+                document.getElementById('satZoom').classList.add('show');
+            };
+            img.onerror = function () { fig.remove(); };
+            const cap = document.createElement('div');
+            cap.className = 'sat-cap';
+            cap.textContent = caption;
+            fig.appendChild(img);
+            fig.appendChild(cap);
+            car.appendChild(fig);
+        }
+
+        async function satFetch() {
+            const st = document.getElementById('satStatus');
+            const car = document.getElementById('satCarousel');
+            car.innerHTML = '';
+
+            // 1) Himawari-9 — latest frame (10-min cycle, ~30 min latency margin)
+            const t = new Date(Date.now() - 30 * 60000);
+            const hhmm = String(t.getUTCHours()).padStart(2, '0') +
+                String(Math.floor(t.getUTCMinutes() / 10) * 10).padStart(2, '0');
+            HIMAWARI_SETS.forEach(set => {
+                satAddImage(car,
+                    'https://www.data.jma.go.jp/mscweb/data/himawari/img/' +
+                    set[0] + '/' + set[0] + '_' + set[1] + '_' + hhmm + '.jpg',
+                    set[2] + ' · ' + hhmm + 'Z');
+            });
+            st.className = 'sched-status live';
+            st.textContent = '● Himawari-9 (JMA) · frame ' + hhmm + 'Z — tap to zoom';
+
+            // 2) Local MET imagery (appended when it goes live)
+            try {
+                if (vnBridgeBase) {
+                    const data = await schedFetchJSON(vnBridgeBase + '/api/weather/satellite', 25000);
+                    (data.images || []).forEach(u =>
+                        satAddImage(car, vnBridgeBase + u, 'Local MET'));
+                } else if (location.protocol === 'http:' || location.protocol === 'https:') {
+                    const data = await schedFetchJSON('data/satellite.json?t=' + Date.now(), 10000);
+                    (data.images || []).forEach(u => satAddImage(car, u, 'Local MET'));
+                }
+            } catch (e) { }
+        }
+
+        // ---- init ----
+        document.addEventListener('DOMContentLoaded', function () {
+            let saved = null;
+            try { saved = localStorage.getItem('fd-theme'); } catch (e) { }
+            fdApplyTheme(saved === 'day');
+            fdClockTick();
+            setInterval(fdClockTick, 1000);
+            metarLoad();
+            setInterval(metarLoad, SCHED_POLL_MS);
+            document.getElementById('metarSearch').addEventListener('input', metarRender);
+        });
+    </script>
+</body>
+
+</html>

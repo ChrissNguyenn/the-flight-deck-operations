@@ -1,0 +1,7 @@
+# secrets — never commit
+config.json
+weathertoken.txt
+
+__pycache__/
+Thumbs.db
+.DS_Store

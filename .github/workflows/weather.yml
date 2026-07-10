@@ -1,0 +1,48 @@
+name: Update Vietnam Weather
+
+on:
+  schedule:
+    # Every 5 minutes, avoiding the congested :00/:30 slots. GitHub throttles
+    # scheduled workflows heavily (observed ~90-120 min actual gaps), so this
+    # is best-effort — the reliable 5-min cadence comes from the external
+    # cron-job.org pinger hitting workflow_dispatch (see SECURITY.md notes).
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
+  workflow_dispatch:            # manual "Run workflow" button + external pinger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weather-update
+  cancel-in-progress: true
+
+jobs:
+  weather:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8          # a hung portal fetch can't block later runs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip            # reuse installed deps — runs finish faster
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch weather
+        env:
+          MET_BASE_URL: ${{ secrets.MET_BASE_URL }}
+          MET_USERNAME: ${{ secrets.MET_USERNAME }}
+          MET_PASSWORD: ${{ secrets.MET_PASSWORD }}
+        run: python fetch_weather_static.py
+
+      - name: Commit updated weather
+        run: |
+          git config user.name "acuro-weather-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "wx update $(date -u '+%d %b %H:%MZ')"
+          git pull --rebase origin ${GITHUB_REF_NAME} || true
+          git push
