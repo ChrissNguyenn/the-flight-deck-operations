@@ -285,32 +285,35 @@
                     src = (payload.source || 'bridge') + ' · bridge';
                 } catch (e) { }
             }
-            // 2) GitHub auto-update — weather.json committed by the Actions
-            //    workflow (1-min external pinger + 5-min cron backstop).
-            //    raw.githubusercontent serves the new commit within seconds;
-            //    the relative GitHub-Pages copy lags behind Pages builds, so
-            //    it is the fallback (and the only one that works while the
-            //    repo is private — the raw URL then 404s harmlessly).
-            //    Data older than 60 min is held back so the live public
-            //    feed gets first try.
+            // 2) GitHub auto-update — weather.json committed on change by
+            //    the Actions 60-second loop. Neither copy is instant:
+            //    raw.githubusercontent caches for 300 s and IGNORES
+            //    query-string busters (verified), the Pages copy waits for
+            //    a Pages build. So fetch BOTH in parallel and use whichever
+            //    payload is fresher. Data older than 60 min is held back so
+            //    the live public feed gets first try.
             let staleStatic = null;
             if (!payload && (location.protocol === 'http:' || location.protocol === 'https:')) {
                 const ghUrls = [
                     'https://raw.githubusercontent.com/ChrissNguyenn/the-flight-deck-operations/main/data/weather.json',
                     'data/weather.json'
                 ];
-                for (let g = 0; g < ghUrls.length && !payload; g++) {
-                    try {
-                        const cand = await schedFetchJSON(ghUrls[g] + '?t=' + Date.now(), 10000);
-                        const ageMin = cand.updated ?
-                            (Date.now() - new Date(cand.updated).getTime()) / 60000 : 0;
-                        if (ageMin <= 60) {
-                            payload = cand;
-                            src = (cand.source || 'VN MET') + ' · GitHub auto-update';
-                        } else if (!staleStatic) {
-                            staleStatic = cand;
-                        }
-                    } catch (e) { }
+                const results = await Promise.all(ghUrls.map(u =>
+                    schedFetchJSON(u + '?t=' + Date.now(), 10000).catch(() => null)));
+                let cand = null;
+                results.forEach(c => {
+                    if (c && c.stations && (!cand ||
+                        new Date(c.updated || 0) > new Date(cand.updated || 0))) cand = c;
+                });
+                if (cand) {
+                    const ageMin = cand.updated ?
+                        (Date.now() - new Date(cand.updated).getTime()) / 60000 : 0;
+                    if (ageMin <= 60) {
+                        payload = cand;
+                        src = (cand.source || 'VN MET') + ' · GitHub auto-update';
+                    } else {
+                        staleStatic = cand;
+                    }
                 }
             }
             // 3) Aviation Weather API direct (METAR + TAF, big airports only)
