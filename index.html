@@ -55,6 +55,10 @@
     <div class="main-container">
         <div id="vn-weather" class="page-content active">
 
+            <!-- Active SPECI alerts — full-size red boxes pinned above
+                 everything else, rebuilt on every weather refresh -->
+            <div class="speci-alerts" id="speciAlerts"></div>
+
             <div class="tab-banner" style="background-color: #00838f; color: #ffffff;">
                 🌦️ Real Vietnam Weather</div>
 
@@ -253,7 +257,7 @@
             else if (/\s(CAVOK|NSC|SKC|CLR)\s/.test(txt)) out.clouds = 'NSC';
             if ((m = txt.match(/\s(M?\d{2})\/(M?\d{2})\s/))) {
                 out.temp = parseInt(m[1].replace('M', '-'), 10);
-                out.dewp = parseInt(m[2].replace('M', '-'), 10);
+                out.dewp = parseInt(m[2].replace('M', '-'), 10); 
             }
             if ((m = txt.match(/\sQ(\d{4})\s/))) out.qnh = parseInt(m[1], 10) + ' hPa';
             else if ((m = txt.match(/\sA(\d{4})\s/))) out.qnh = Math.round(parseInt(m[1], 10) / 100 * 33.8639) + ' hPa';
@@ -393,7 +397,48 @@
             }
         }
 
+        // Slide-in animation only for SPECIs not shown before — the list
+        // is rebuilt every 60 s and replaying it each time is distracting
+        const speciSeen = {};
+
+        function speciAlertsRender() {
+            const box = document.getElementById('speciAlerts');
+            box.innerHTML = '';
+            if (!metarData) return;
+            // NOT filtered by the search box — an active SPECI is an alert
+            metarData.stations.filter(s => s.speci).forEach(s => {
+                const key = s.icao + '|' + s.speci;
+                const al = document.createElement('div');
+                al.className = 'speci-alert' + (speciSeen[key] ? '' : ' speci-new');
+                speciSeen[key] = true;
+                al.onclick = function () { wxOpenDetail(s.icao); };
+
+                const head = document.createElement('div');
+                head.className = 'speci-alert-head';
+                const badge = document.createElement('span');
+                badge.className = 'speci-badge speci-badge-big';
+                badge.textContent = 'SPECI';
+                const icao = document.createElement('span');
+                icao.className = 'speci-alert-icao';
+                icao.textContent = s.icao;
+                const name = document.createElement('span');
+                name.className = 'speci-alert-name';
+                name.textContent = s.name || '';
+                head.appendChild(badge);
+                head.appendChild(icao);
+                head.appendChild(name);
+                al.appendChild(head);
+
+                const raw = document.createElement('div');
+                raw.className = 'speci-alert-raw';
+                raw.textContent = s.speci;
+                al.appendChild(raw);
+                box.appendChild(al);
+            });
+        }
+
         function metarRender() {
+            speciAlertsRender();
             const list = document.getElementById('metarList');
             const q = (document.getElementById('metarSearch').value || '').trim().toUpperCase();
             list.innerHTML = '';

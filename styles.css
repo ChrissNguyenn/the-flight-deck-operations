@@ -3255,6 +3255,121 @@ body {
     }
 }
 
+/* ---- SPECI ALERTS — full-size red boxes at the very top of the page.
+   The raw SPECI is shown complete, larger and bolder than the normal
+   METAR line, with a pulsing red glow; new alerts slide in. ---- */
+.speci-alerts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.speci-alerts:not(:empty) {
+    margin-bottom: 14px;
+}
+
+.speci-alert {
+    background: linear-gradient(180deg, rgba(204, 0, 0, 0.22) 0%, rgba(204, 0, 0, 0.10) 100%);
+    border: 1px solid rgba(255, 82, 82, 0.65);
+    border-left: 6px solid #cc0000;
+    border-radius: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    animation: speci-alert-glow 2.2s ease-in-out infinite;
+}
+
+.speci-alert.speci-new {
+    animation: speci-alert-in 0.45s ease-out,
+        speci-alert-glow 2.2s ease-in-out 0.45s infinite;
+}
+
+@keyframes speci-alert-in {
+    from {
+        opacity: 0;
+        transform: translateY(-12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes speci-alert-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 18px rgba(204, 0, 0, 0.22);
+        border-color: rgba(255, 82, 82, 0.55);
+    }
+
+    50% {
+        box-shadow: 0 4px 26px rgba(204, 0, 0, 0.5);
+        border-color: rgba(255, 82, 82, 0.95);
+    }
+}
+
+.speci-alert-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.speci-badge-big {
+    font-size: 13px;
+    padding: 3px 12px;
+    border-radius: 10px;
+}
+
+.speci-alert-icao {
+    font-family: 'Courier New', monospace;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #ff5252;
+}
+
+.speci-alert-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+}
+
+/* Full raw SPECI — bigger than the 12px normal METAR line */
+.speci-alert-raw {
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.55;
+    color: #ffd7d7;
+    word-break: break-word;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .speci-alert,
+    .speci-alert.speci-new {
+        animation: none;
+    }
+}
+
+:root.light-mode .speci-alert {
+    background: linear-gradient(180deg, rgba(204, 0, 0, 0.10) 0%, rgba(204, 0, 0, 0.04) 100%);
+    border-color: rgba(204, 0, 0, 0.45);
+}
+
+:root.light-mode .speci-alert-icao {
+    color: #cc0000;
+}
+
+:root.light-mode .speci-alert-raw {
+    color: #a01414;
+}
+
 /* TAF expandable block */
 .metar-taf-btn {
     display: block;
