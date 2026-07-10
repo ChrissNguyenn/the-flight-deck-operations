@@ -25,6 +25,15 @@ cron-job.org ──▶ GitHub workflow_dispatch API    GitHub Pages / raw.github
   first** (updates seconds after each commit, needs the repo to be
   public) and falls back to the GitHub-Pages copy (lags a few minutes
   behind, because Pages rebuilds are throttled to ~10/hour).
+- **Commit-on-change**: each run compares the fetched reports with the
+  committed `weather.json` and only commits when something changed.
+  A fresh **SPECI** therefore reaches the site within ~1–2 minutes of
+  the portal receiving it, while unchanged minutes produce no commit,
+  no Pages build, and no git noise.
+- **TAF economy**: TAFs are issued only 4×/day but need a ~30-page
+  portal scan; the every-minute runs reuse the previous TAFs and do a
+  full rescan only on `:x0` minutes. METAR/SPECI (3 pages) are fetched
+  on every run.
 
 ## One-time setup: 1-minute pinger (cron-job.org)
 
@@ -55,17 +64,13 @@ cron-job.org ──▶ GitHub workflow_dispatch API    GitHub Pages / raw.github
      -d '{"ref":"main"}'
    ```
 
-## ⚠ Repo visibility vs Actions minutes
+## Repo visibility vs Actions minutes
 
-A 1-minute cadence ≈ **1,440 workflow runs/day**.
+This repo is **public** (made public 2026-07-10; the git history was
+verified clean of credentials, portal URLs, and API keys first).
+Actions minutes on standard runners are therefore free and unlimited —
+the 1-minute cadence (~1,440 runs/day) costs nothing.
 
-- **Private repo**: runs bill against the plan quota (Free 2,000 /
-  Pro 3,000 minutes per month) — that is exhausted in **~2 days**, then
-  all updates stop until the next billing month.
-- **Public repo**: Actions minutes on standard runners are **free and
-  unlimited** — the 1-minute cadence just works, and the
-  raw.githubusercontent fast path starts working too.
-
-The git history has been checked: no credentials, portal URL, or API
-keys were ever committed, so making the repo public is safe
-(Settings → General → Danger Zone → Change visibility).
+Do **not** make the repo private again while the 1-minute pinger is
+active: private-repo runs bill per job rounded up to a full minute,
+which exhausts a Pro plan's 3,000 monthly minutes in ~2 days.

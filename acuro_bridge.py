@@ -62,6 +62,7 @@ MET_PASS = (os.environ.get("MET_PASSWORD") or os.environ.get("MET_PASSWORD")
 SOURCE_LABEL = "VN MET"        # public-facing name of the authenticated feed
 
 REFRESH_S = 60
+TAF_REFRESH_S = 600            # full TAF slot scan at most every 10 min
 HTTP_TIMEOUT = 15
 
 STATION_NAMES = {
@@ -159,6 +160,10 @@ def parse_metar(raw):
 _session = requests.Session()
 _session.headers["User-Agent"] = "Mozilla/5.0 (ACURO-EFB-Bridge)"
 _session_lock = threading.Lock()
+
+# Last full TAF scan — reused between refreshes (and seeded from the
+# previous data/weather.json by fetch_weather_static.py one-shot runs)
+_taf_state = {"ts": 0.0, "tafs": {}}
 
 
 def _met_login():
@@ -265,53 +270,62 @@ def fetch_met_weather():
     # whatever half-hour slot it was RECEIVED in — so scan every candidate
     # slot and keep the newest TAF per station. Stopping at the first slot
     # that had any TAF (the old behaviour) dropped most airports.
-    now = datetime.now(timezone.utc)
-    candidates = []
-    for back in range(4):                 # last 2 h of reception slots
-        t = now - timedelta(minutes=30 * back)
-        candidates.append((t.strftime("%d%m%Y"),
-                           f"{t.hour:02d}{(t.minute // 30) * 30:02d}"))
-    for back_day in (0, 1):
-        d = (now - timedelta(days=back_day)).strftime("%d%m%Y")
-        # each issue hour ± the slots reports actually get received in
-        for t in ("2230", "2300", "2330", "0000", "0030",
-                  "1630", "1700", "1730",
-                  "1030", "1100", "1130",
-                  "0430", "0500", "0530"):
-            if back_day == 0 and int(t) > int(slot):
+    # The scan is ~30 portal pages vs 3 for METAR/SPECI, and TAFs only
+    # change 4x a day — so on the every-minute cadence the last scan is
+    # reused for TAF_REFRESH_S and only METAR/SPECI (where the fresh
+    # SPECIs appear) are fetched each run.
+    if _taf_state["tafs"] and time.time() - _taf_state["ts"] < TAF_REFRESH_S:
+        tafs = dict(_taf_state["tafs"])
+    else:
+        now = datetime.now(timezone.utc)
+        candidates = []
+        for back in range(4):             # last 2 h of reception slots
+            t = now - timedelta(minutes=30 * back)
+            candidates.append((t.strftime("%d%m%Y"),
+                               f"{t.hour:02d}{(t.minute // 30) * 30:02d}"))
+        for back_day in (0, 1):
+            d = (now - timedelta(days=back_day)).strftime("%d%m%Y")
+            # each issue hour ± the slots reports actually get received in
+            for t in ("2230", "2300", "2330", "0000", "0030",
+                      "1630", "1700", "1730",
+                      "1030", "1100", "1130",
+                      "0430", "0500", "0530"):
+                if back_day == 0 and int(t) > int(slot):
+                    continue
+                candidates.append((d, t))
+        best_t = {}                       # icao -> (time_key, raw)
+        seen = set()
+        for d, t in candidates:
+            if (d, t) in seen:
                 continue
-            candidates.append((d, t))
-    best_t = {}                           # icao -> (time_key, raw)
-    seen = set()
-    for d, t in candidates:
-        if (d, t) in seen:
-            continue
-        seen.add((d, t))
-        html = _met_get({"cat": "2", "sub": "1", "type": "0",
-                          "cboTime": t, "cboDay": d, "cboElement": ""})
-        for kind, icao, raw in _extract_reports(html):
-            if kind != "TAF":
-                continue
-            key = _report_time_key(raw)
-            if icao not in best_t or _key_newer(key, best_t[icao][0]):
-                best_t[icao] = (key, raw)
-    tafs = {icao: raw for icao, (key, raw) in best_t.items()}
+            seen.add((d, t))
+            html = _met_get({"cat": "2", "sub": "1", "type": "0",
+                             "cboTime": t, "cboDay": d, "cboElement": ""})
+            for kind, icao, raw in _extract_reports(html):
+                if kind != "TAF":
+                    continue
+                key = _report_time_key(raw)
+                if icao not in best_t or _key_newer(key, best_t[icao][0]):
+                    best_t[icao] = (key, raw)
+        tafs = {icao: raw for icao, (key, raw) in best_t.items()}
 
-    # Backfill any station the portal still left without a TAF from the
-    # public international feed (major airports are always on it).
-    missing = sorted(set(list(metars) + list(specis)) - set(tafs))
-    if missing:
-        try:
-            r = requests.get("https://aviationweather.gov/api/data/taf",
-                             params={"ids": ",".join(missing), "format": "raw"},
-                             timeout=15)
-            r.raise_for_status()
-            for block in re.split(r"\n(?=TAF\b)", r.text.strip()):
-                m = re.search(r"\bTAF\s+(?:AMD\s+|COR\s+)?(VV[A-Z]{2})\b", block)
-                if m and m.group(1) not in tafs:
-                    tafs[m.group(1)] = re.sub(r"\s+", " ", block).strip()
-        except Exception:
-            pass
+        # Backfill any station the portal still left without a TAF from the
+        # public international feed (major airports are always on it).
+        missing = sorted(set(list(metars) + list(specis)) - set(tafs))
+        if missing:
+            try:
+                r = requests.get("https://aviationweather.gov/api/data/taf",
+                                 params={"ids": ",".join(missing), "format": "raw"},
+                                 timeout=15)
+                r.raise_for_status()
+                for block in re.split(r"\n(?=TAF\b)", r.text.strip()):
+                    m = re.search(r"\bTAF\s+(?:AMD\s+|COR\s+)?(VV[A-Z]{2})\b", block)
+                    if m and m.group(1) not in tafs:
+                        tafs[m.group(1)] = re.sub(r"\s+", " ", block).strip()
+            except Exception:
+                pass
+        _taf_state["ts"] = time.time()
+        _taf_state["tafs"] = dict(tafs)
 
     if not metars and not specis:
         raise RuntimeError("no reports parsed from MET portal (page format change?)")
