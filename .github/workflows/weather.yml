@@ -2,10 +2,10 @@ name: Update Vietnam Weather
 
 on:
   schedule:
-    # Every 5 minutes, avoiding the congested :00/:30 slots. GitHub throttles
-    # scheduled workflows heavily (observed ~90-120 min actual gaps), so this
-    # is best-effort — the reliable 5-min cadence comes from the external
-    # cron-job.org pinger hitting workflow_dispatch (see SECURITY.md notes).
+    # Best-effort backstop only. GitHub throttles scheduled workflows
+    # heavily (observed ~90-120 min actual gaps), so the real 1-minute
+    # cadence comes from an external cron-job.org pinger hitting the
+    # workflow_dispatch API — setup steps in README.md.
     - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
   workflow_dispatch:            # manual "Run workflow" button + external pinger
 

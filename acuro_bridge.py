@@ -61,7 +61,7 @@ MET_PASS = (os.environ.get("MET_PASSWORD") or os.environ.get("MET_PASSWORD")
 
 SOURCE_LABEL = "VN MET"        # public-facing name of the authenticated feed
 
-REFRESH_S = 300
+REFRESH_S = 60
 HTTP_TIMEOUT = 15
 
 STATION_NAMES = {

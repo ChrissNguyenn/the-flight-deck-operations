@@ -8,8 +8,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>THE FLIGHT DECK — OPERATIONS</title>
+    <!-- Favicon: white jet on a teal→blue gradient badge — the plain ✈️
+         emoji glyph disappeared against dark browser tab strips -->
     <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✈️</text></svg>">
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2300c2d4'/><stop offset='1' stop-color='%230066d6'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><path d='M50 12 C46 20 45 26 45 34 L45 40 L14 58 L14 66 L45 56 L45 72 L34 82 L34 88 L50 83 L66 88 L66 82 L55 72 L55 56 L86 66 L86 58 L55 40 L55 34 C55 26 54 20 50 12 Z' fill='white'/></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
@@ -21,7 +23,20 @@
 
     <header class="fd-header">
         <div class="fd-brand">
-            <span class="fd-plane">✈</span>
+            <!-- Inline SVG (not the ✈ glyph): iOS forces the emoji
+                 rendering, which ignores CSS color and looks muddy in
+                 night mode. The path is themed from styles.css. -->
+            <span class="fd-plane" aria-hidden="true"><svg viewBox="0 0 100 100">
+                    <defs>
+                        <linearGradient id="fdPlaneGrad" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#2ee6f5" />
+                            <stop offset="1" stop-color="#4da6ff" />
+                        </linearGradient>
+                    </defs>
+                    <path
+                        d="M50 12 C46 20 45 26 45 34 L45 40 L14 58 L14 66 L45 56 L45 72 L34 82 L34 88 L50 83 L66 88 L66 82 L55 72 L55 56 L86 66 L86 58 L55 40 L55 34 C55 26 54 20 50 12 Z"
+                        fill="url(#fdPlaneGrad)" />
+                </svg></span>
             <div>
                 <div class="fd-title">THE FLIGHT DECK</div>
                 <div class="fd-sub">OPERATIONS · VIETNAM WEATHER</div>
@@ -59,7 +74,7 @@
                 <span style="color:#ff5252;font-weight:700;">IFR</span> ·
                 <span style="color:#c86bff;font-weight:700;">LIFR</span>.
                 <span class="speci-badge" style="margin-left:6px;">SPECI</span> = special report
-                (significant change). Weather auto-refreshes every 5 minutes.</div>
+                (significant change). Weather auto-refreshes every 1 minute.</div>
 
             <!-- ===== SATELLITE IMAGERY ===== -->
             <div class="efb-card sat-panel">
@@ -118,7 +133,7 @@
             }
         }
 
-        const SCHED_POLL_MS = 300000;       // weather re-sync every 5 minutes
+        const SCHED_POLL_MS = 60000;        // weather re-sync every 1 minute
 
         function fdApplyTheme(light) {
             document.documentElement.classList.toggle('light-mode', light);
@@ -276,23 +291,33 @@
                     src = (payload.source || 'bridge') + ' · bridge';
                 } catch (e) { }
             }
-            // 2) GitHub auto-update — static weather.json committed every
-            //    30 min by the Actions workflow (works for ALL visitors).
-            //    If the file is older than 60 min (workflow delayed/broken),
-            //    hold it back and let the live public feed try first.
+            // 2) GitHub auto-update — weather.json committed by the Actions
+            //    workflow (1-min external pinger + 5-min cron backstop).
+            //    raw.githubusercontent serves the new commit within seconds;
+            //    the relative GitHub-Pages copy lags behind Pages builds, so
+            //    it is the fallback (and the only one that works while the
+            //    repo is private — the raw URL then 404s harmlessly).
+            //    Data older than 60 min is held back so the live public
+            //    feed gets first try.
             let staleStatic = null;
             if (!payload && (location.protocol === 'http:' || location.protocol === 'https:')) {
-                try {
-                    const cand = await schedFetchJSON('data/weather.json?t=' + Date.now(), 10000);
-                    const ageMin = cand.updated ?
-                        (Date.now() - new Date(cand.updated).getTime()) / 60000 : 0;
-                    if (ageMin <= 60) {
-                        payload = cand;
-                        src = (cand.source || 'VN MET') + ' · GitHub auto-update';
-                    } else {
-                        staleStatic = cand;
-                    }
-                } catch (e) { }
+                const ghUrls = [
+                    'https://raw.githubusercontent.com/ChrissNguyenn/the-flight-deck-operations/main/data/weather.json',
+                    'data/weather.json'
+                ];
+                for (let g = 0; g < ghUrls.length && !payload; g++) {
+                    try {
+                        const cand = await schedFetchJSON(ghUrls[g] + '?t=' + Date.now(), 10000);
+                        const ageMin = cand.updated ?
+                            (Date.now() - new Date(cand.updated).getTime()) / 60000 : 0;
+                        if (ageMin <= 60) {
+                            payload = cand;
+                            src = (cand.source || 'VN MET') + ' · GitHub auto-update';
+                        } else if (!staleStatic) {
+                            staleStatic = cand;
+                        }
+                    } catch (e) { }
+                }
             }
             // 3) Aviation Weather API direct (METAR + TAF, big airports only)
             if (!payload) {
