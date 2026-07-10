@@ -646,16 +646,63 @@
                     '<text x="' + cx + '" y="24" class="wxc-rwy-id">' + rw[1] + '</text>' +
                     '<text x="' + cx + '" y="101" class="wxc-rwy-id">' + rw[0] + '</text></g>';
             }).join('');
+            // Meteorological convention: 240/10 blows FROM 240 — the barb
+            // sits ON the 240 rim mark and points INWARD (toward 060),
+            // the way metar-taf.com draws it
             const arrow = (n.dir === null) ? '' :
                 '<g transform="rotate(' + n.dir + ' 60 60)">' +
-                '<path d="M60 8 L67 26 L60 21 L53 26 Z" class="wxc-arrow"/>' +
-                '<line x1="60" y1="23" x2="60" y2="36" class="wxc-line"/></g>';
+                '<line x1="60" y1="10" x2="60" y2="17" class="wxc-line"/>' +
+                '<path d="M60 37 L67 16 L60 21 L53 16 Z" class="wxc-arrow"/></g>';
+            const hubTxt = n.vrb ? 'VRB' :
+                (n.dir === null ? '—' : ('00' + n.dir).slice(-3) + '°');
             return '<svg viewBox="0 0 120 120" class="wx-compass" aria-hidden="true">' +
                 '<circle cx="60" cy="60" r="52" class="wxc-ring"/>' + cards + runways +
-                '<circle cx="60" cy="60" r="21" class="wxc-hub"/>' + arrow +
-                '<text x="60" y="58" class="wxc-spd">' + (n.spd !== null ? n.spd : '—') + '</text>' +
-                '<text x="60" y="74" class="wxc-unit">' +
-                (n.vrb ? 'kt · VRB' : 'kt' + (n.gust ? ' G' + n.gust : '')) + '</text></svg>';
+                '<circle cx="60" cy="60" r="19" class="wxc-hub"/>' + arrow +
+                '<text x="60" y="65" class="wxc-dir">' + hubTxt + '</text></svg>';
+        }
+
+        // Wind-speed "clock": 270° speedometer dial, metar-taf.com style —
+        // ticks every 5 kt, white needle at speed, amber needle at gust
+        function wxGaugeSVG(n) {
+            if (n.spd === null) {
+                return '<div class="wx-nogauge">—</div>';
+            }
+            const top = Math.max(n.spd, n.gust || 0);
+            const max = top > 55 ? 80 : (top > 35 ? 60 : 40);
+            const lblStep = max === 80 ? 20 : 10;
+            const P = (r, deg) => {
+                const a = deg * Math.PI / 180;
+                return [60 + r * Math.sin(a), 60 - r * Math.cos(a)];
+            };
+            const A = v => -135 + 270 * Math.min(v, max) / max;
+            let marks = '';
+            for (let v = 0; v <= max; v += 5) {
+                const major = v % lblStep === 0;
+                const p1 = P(50, A(v)), p2 = P(major ? 42 : 45.5, A(v));
+                marks += '<line x1="' + p1[0].toFixed(1) + '" y1="' + p1[1].toFixed(1) +
+                    '" x2="' + p2[0].toFixed(1) + '" y2="' + p2[1].toFixed(1) +
+                    '" class="' + (major ? 'wxg-tick-major' : 'wxg-tick') + '"/>';
+                if (major) {
+                    const pl = P(33, A(v));
+                    marks += '<text x="' + pl[0].toFixed(1) + '" y="' +
+                        (pl[1] + 3).toFixed(1) + '" class="wxg-lbl">' + v + '</text>';
+                }
+            }
+            let needles = '';
+            if (n.gust) {
+                const g = P(39, A(n.gust));
+                needles += '<line x1="60" y1="60" x2="' + g[0].toFixed(1) +
+                    '" y2="' + g[1].toFixed(1) + '" class="wxg-needle-gust"/>';
+            }
+            const t = P(39, A(n.spd));
+            needles += '<line x1="60" y1="60" x2="' + t[0].toFixed(1) +
+                '" y2="' + t[1].toFixed(1) + '" class="wxg-needle"/>' +
+                '<circle cx="60" cy="60" r="4.5" class="wxg-hub"/>';
+            return '<svg viewBox="0 0 120 120" class="wx-gauge" aria-hidden="true">' +
+                '<circle cx="60" cy="60" r="52" class="wxc-ring"/>' + marks + needles +
+                '<text x="60" y="99" class="wxg-spd">' + n.spd + '</text>' +
+                '<text x="60" y="111" class="wxg-unit">kt' +
+                (n.gust ? ' · G' + n.gust : '') + (n.vrb ? ' · VRB' : '') + '</text></svg>';
         }
 
         function wxPuff(x) {
@@ -717,7 +764,8 @@
                 (n.time ? '<div class="wx-obs">OBS DAY ' + (n.day || '—') + ' · ' + n.time + 'Z</div>' : '') +
                 '</div></div>' +
                 '<div class="wx-widgets">' +
-                '<div class="wx-widget"><div class="wx-tile-label">Wind · Runway</div>' + wxCompassSVG(n, s.icao) + '</div>' +
+                '<div class="wx-widget"><div class="wx-tile-label">Wind · Runway</div>' + wxCompassSVG(n, s.icao) +
+                '<div class="wx-tile-label wx-gauge-label">Wind Speed</div>' + wxGaugeSVG(n) + '</div>' +
                 '<div class="wx-widget"><div class="wx-tile-label">Clouds</div>' + wxCloudsHTML(n) + '</div>' +
                 '<div class="wx-tiles">' +
                 wxTile('Visibility', visTxt, '') +
