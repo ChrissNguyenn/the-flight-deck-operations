@@ -4222,25 +4222,17 @@ body {
     gap: 12px;
 }
 
-.fd-plane {
-    display: flex;
-    align-items: center;
+.fd-logo {
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+    /* black line art -> white, plus a soft cyan glow for night mode */
+    filter: invert(1) drop-shadow(0 0 6px rgba(0, 194, 212, 0.45));
 }
 
-.fd-plane svg {
-    width: 32px;
-    height: 32px;
-    /* soft cyan glow so the jet reads clearly on the dark taskbar */
-    filter: drop-shadow(0 0 7px rgba(0, 194, 212, 0.55));
-}
-
-/* Day mode: bright gradient washes out on white — use solid teal */
-:root.light-mode .fd-plane svg path {
-    fill: #00838f;
-}
-
-:root.light-mode .fd-plane svg {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
+/* Day mode: keep the logo black, drop the glow */
+:root.light-mode .fd-logo {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
 }
 
 .fd-title {
@@ -4314,9 +4306,9 @@ body {
         letter-spacing: 1.5px;
     }
 
-    .fd-plane svg {
-        width: 26px;
-        height: 26px;
+    .fd-logo {
+        width: 30px;
+        height: 30px;
     }
 
     .fd-clock {

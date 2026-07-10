@@ -9,8 +9,8 @@ airports), migrated from the ACURO QRH. Live site:
 ```
 VATM MET portal ──(login via Actions secrets)──▶ fetch_weather_static.py
         ▲                                              │ commits data/weather.json
-        │ 1-min trigger                                ▼
-cron-job.org ──▶ GitHub workflow_dispatch API    GitHub Pages / raw.githubusercontent
+        │ every 60 s                                   ▼
+Actions loop job (self-sustaining)     GitHub Pages / raw.githubusercontent
                                                        ▲
                                             frontend polls every 60 s
 ```
@@ -18,9 +18,15 @@ cron-job.org ──▶ GitHub workflow_dispatch API    GitHub Pages / raw.github
 - **Credentials** live only in GitHub Actions secrets
   (`MET_BASE_URL`, `MET_USERNAME`, `MET_PASSWORD`) and in the local,
   gitignored `config.json`. Never commit them.
-- The workflow's own `schedule:` cron is a **backstop only** — GitHub
-  delays scheduled runs by 5–120 minutes. The reliable 1-minute cadence
-  comes from an external pinger (below).
+- **Self-sustaining loop**: GitHub delays `schedule:` crons by 5–120
+  minutes, so instead of one run per minute, a single Actions job loops
+  fetch → commit-on-change → sleep 60 s for ~5h40m (under the 6-hour
+  job limit). The half-hourly cron keeps one run **queued** in the
+  `weather-update` concurrency group (`cancel-in-progress: false`), and
+  it takes over the moment the running loop ends. No external pinger or
+  token is needed. If the loop ever dies, the next cron firing restarts
+  it within ~30 minutes — or press *Run workflow* in the Actions tab
+  for an instant restart.
 - The frontend reads `data/weather.json` from **raw.githubusercontent
   first** (updates seconds after each commit, needs the repo to be
   public) and falls back to the GitHub-Pages copy (lags a few minutes
@@ -35,42 +41,21 @@ cron-job.org ──▶ GitHub workflow_dispatch API    GitHub Pages / raw.github
   full rescan only on `:x0` minutes. METAR/SPECI (3 pages) are fetched
   on every run.
 
-## One-time setup: 1-minute pinger (cron-job.org)
+## Checking / restarting the loop
 
-1. **Create a fine-grained GitHub token** —
-   github.com → Settings → Developer settings → Personal access tokens
-   → Fine-grained tokens → *Generate new token*:
-   - Repository access: **Only select repositories** → `the-flight-deck-operations`
-   - Repository permissions: **Actions → Read and write** (nothing else)
-   - Copy the token. Optionally keep it in the gitignored
-     `weathertoken.txt` — never commit it.
-2. **Create the cron job** — cron-job.org → *Create cronjob*:
-   - URL: `https://api.github.com/repos/ChrissNguyenn/the-flight-deck-operations/actions/workflows/weather.yml/dispatches`
-   - Schedule: **every 1 minute**
-   - Advanced → Request method: **POST**
-   - Advanced → Headers:
-     - `Authorization: Bearer <YOUR TOKEN>`
-     - `Accept: application/vnd.github+json`
-     - `Content-Type: application/json`
-   - Advanced → Request body: `{"ref":"main"}`
-3. **Test** — a successful dispatch returns HTTP **204** (empty body).
-   Same request from a terminal:
-
-   ```
-   curl -i -X POST \
-     -H "Authorization: Bearer <YOUR TOKEN>" \
-     -H "Accept: application/vnd.github+json" \
-     https://api.github.com/repos/ChrissNguyenn/the-flight-deck-operations/actions/workflows/weather.yml/dispatches \
-     -d '{"ref":"main"}'
-   ```
+- **Is it running?** Actions tab → "Update Vietnam Weather" — one run
+  should be *in progress* (the loop) and usually one *queued*.
+- **Restart instantly**: Actions tab → Update Vietnam Weather →
+  *Run workflow*. (The old cron-job.org/PAT pinger setup is obsolete —
+  the loop replaced it and needs no external service.)
 
 ## Repo visibility vs Actions minutes
 
 This repo is **public** (made public 2026-07-10; the git history was
 verified clean of credentials, portal URLs, and API keys first).
 Actions minutes on standard runners are therefore free and unlimited —
-the 1-minute cadence (~1,440 runs/day) costs nothing.
+the continuous loop (~24 runner-hours/day) costs nothing.
 
-Do **not** make the repo private again while the 1-minute pinger is
-active: private-repo runs bill per job rounded up to a full minute,
-which exhausts a Pro plan's 3,000 monthly minutes in ~2 days.
+Do **not** make the repo private again while the loop is active:
+private-repo runs bill by the minute (~1,440/day), which exhausts a
+Pro plan's 3,000 monthly minutes in ~2 days.

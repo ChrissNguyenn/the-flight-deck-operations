@@ -8,10 +8,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>THE FLIGHT DECK — OPERATIONS</title>
-    <!-- Favicon: white jet on a teal→blue gradient badge — the plain ✈️
-         emoji glyph disappeared against dark browser tab strips -->
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2300c2d4'/><stop offset='1' stop-color='%230066d6'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><path d='M50 12 C46 20 45 26 45 34 L45 40 L14 58 L14 66 L45 56 L45 72 L34 82 L34 88 L50 83 L66 88 L66 82 L55 72 L55 56 L86 66 L86 58 L55 40 L55 34 C55 26 54 20 50 12 Z' fill='white'/></svg>">
+    <!-- Favicon: The Flight Deck logo in white on a teal→blue gradient
+         badge (generated from images/The Flight Deck 9x9_1-03.png) —
+         stays visible on both dark and light browser tab strips -->
+    <link rel="icon" type="image/png" href="images/favicon-64.png">
+    <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
@@ -23,20 +24,9 @@
 
     <header class="fd-header">
         <div class="fd-brand">
-            <!-- Inline SVG (not the ✈ glyph): iOS forces the emoji
-                 rendering, which ignores CSS color and looks muddy in
-                 night mode. The path is themed from styles.css. -->
-            <span class="fd-plane" aria-hidden="true"><svg viewBox="0 0 100 100">
-                    <defs>
-                        <linearGradient id="fdPlaneGrad" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0" stop-color="#2ee6f5" />
-                            <stop offset="1" stop-color="#4da6ff" />
-                        </linearGradient>
-                    </defs>
-                    <path
-                        d="M50 12 C46 20 45 26 45 34 L45 40 L14 58 L14 66 L45 56 L45 72 L34 82 L34 88 L50 83 L66 88 L66 82 L55 72 L55 56 L86 66 L86 58 L55 40 L55 34 C55 26 54 20 50 12 Z"
-                        fill="url(#fdPlaneGrad)" />
-                </svg></span>
+            <!-- The Flight Deck logo (black line art, transparent bg) —
+                 night mode inverts it to white via CSS -->
+            <img class="fd-logo" src="images/logo.png" alt="The Flight Deck">
             <div>
                 <div class="fd-title">THE FLIGHT DECK</div>
                 <div class="fd-sub">OPERATIONS · VIETNAM WEATHER</div>
