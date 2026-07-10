@@ -3551,19 +3551,25 @@ body {
 }
 
 /* ATIS block (amber = information broadcast) — prominent bar */
+/* ATIS: same quiet row language as the TAF button, amber accent —
+   visible at a glance without shouting over the dark card */
 .metar-taf-btn.metar-atis-btn {
-    color: #000000;
-    background: linear-gradient(135deg, rgba(255, 179, 0, 0.95), rgba(230, 134, 0, 0.95));
-    font-size: 13px;
+    color: var(--airbus-amber);
+    background-color: rgba(255, 179, 0, 0.10);
+    font-size: 12px;
     font-weight: 800;
     letter-spacing: 1.2px;
-    padding: 12px 16px;
-    min-height: 44px;
-    border-top: 1px solid #000;
+    padding: 10px 16px;
+    min-height: 40px;
+    border-top: 1px solid rgba(255, 179, 0, 0.35);
+}
+
+.metar-taf-btn.metar-atis-btn:hover {
+    background-color: rgba(255, 179, 0, 0.18);
 }
 
 .metar-taf-btn.metar-atis-btn:active {
-    background: var(--airbus-amber);
+    background-color: rgba(255, 179, 0, 0.30);
 }
 
 .metar-raw.metar-atis {
@@ -3602,6 +3608,8 @@ body {
     text-align: right;
 }
 
+/* pill button — matches the ATIS/TAF accent language (blue) instead of
+   inheriting the browser's white default button chrome */
 .metar-ext-link {
     font-family: 'Poppins', sans-serif;
     font-size: 10px;
@@ -3609,16 +3617,34 @@ body {
     letter-spacing: 0.8px;
     color: #4da6ff;
     text-decoration: none;
-    padding: 4px 2px;
+    background-color: rgba(0, 102, 214, 0.12);
+    border: 1px solid rgba(77, 166, 255, 0.45);
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.metar-ext-link:hover {
+    background-color: rgba(0, 102, 214, 0.22);
+    border-color: #4da6ff;
 }
 
 .metar-ext-link:active {
+    background-color: var(--qrh-blue);
+    border-color: var(--qrh-blue);
     color: #ffffff;
 }
 
 /* Day mode */
 :root.light-mode .metar-raw.metar-atis {
     color: #7a6420;
+}
+
+/* bright amber text washes out on white — use a dark amber */
+:root.light-mode .metar-taf-btn.metar-atis-btn {
+    color: #9a6a00;
+    border-top-color: rgba(154, 106, 0, 0.35);
 }
 
 :root.light-mode .metar-links {
