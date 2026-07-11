@@ -29,9 +29,9 @@
             <img class="fd-logo" src="images/logo.png" alt="The Flight Deck">
             <div>
                 <div class="fd-title">THE FLIGHT DECK</div>
-                <div class="fd-sub">OPERATIONS · VIETNAM WEATHER</div>
             </div>
         </div>
+        <div class="fd-center">OPERATIONS CENTER</div>
         <div class="fd-tools">
             <div>
                 <div class="fd-clock" id="fdClock">--:--:--</div>
@@ -551,7 +551,8 @@
             shown.forEach(s => {
                 const cat = String(s.fltcat || 'UNK').toUpperCase();
                 const card = document.createElement('div');
-                card.className = 'metar-card';
+                // an active SPECI turns the whole card red
+                card.className = 'metar-card' + (s.speci ? ' has-speci' : '');
 
                 const head = document.createElement('div');
                 head.className = 'metar-head';

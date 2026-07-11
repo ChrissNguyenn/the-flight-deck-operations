@@ -3212,15 +3212,56 @@ body {
    VN WEATHER — SPECI warnings, TAF dropdown, satellite imagery
    ============================================================ */
 
-/* SPECI: special report — solid red block, white text, unmissable */
+/* SPECI: special report — solid red block, white text, unmissable.
+   Inset with margins so the rounded block never touches or overlaps
+   the card edges */
 .metar-raw.metar-speci {
     color: #ffffff;
     font-weight: 700;
+    margin: 10px 12px;
+    padding: 10px 14px;
     border: 1px solid #ff6b6b;
     border-left: 5px solid #7f0000;
     border-radius: 8px;
     background: linear-gradient(135deg, #e53935 0%, #b71c1c 100%);
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* ---- whole-card red theme while a SPECI is active ---- */
+.metar-card.has-speci {
+    border: 2px solid #e53935;
+    box-shadow: 0 4px 20px rgba(229, 57, 53, 0.35);
+}
+
+.metar-card.has-speci .metar-head {
+    background: linear-gradient(135deg, #e53935 0%, #b71c1c 100%);
+    border-bottom-color: #7f0000;
+}
+
+.metar-card.has-speci .metar-icao {
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.metar-card.has-speci .metar-name {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* the flight-rules pill needs its own backing on the red header */
+.metar-card.has-speci .metar-cat {
+    background: rgba(20, 25, 31, 0.85);
+}
+
+.metar-card.has-speci .metar-grid {
+    background-color: rgba(229, 57, 53, 0.14);
+}
+
+:root.light-mode .metar-card.has-speci .metar-grid {
+    background-color: rgba(229, 57, 53, 0.07);
+}
+
+:root.light-mode .metar-card.has-speci .metar-cat {
+    background: rgba(255, 255, 255, 0.92);
 }
 
 .metar-raw.metar-speci .speci-badge {
@@ -4348,6 +4389,18 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 1;
+}
+
+/* centered header wordmark */
+.fd-center {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    text-align: center;
+    color: #00b8c8;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .fd-logo {
@@ -4371,17 +4424,19 @@ body {
     line-height: 1.15;
 }
 
-.fd-sub {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #00b8c8;
+/* the centered wordmark competes for space on narrow phones — drop it */
+@media (max-width: 700px) {
+    .fd-center {
+        display: none;
+    }
 }
 
 .fd-tools {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 14px;
+    flex: 1;
 }
 
 .fd-clock {
