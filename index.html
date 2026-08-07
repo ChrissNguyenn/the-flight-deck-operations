@@ -46,6 +46,10 @@
     <nav class="fd-tabs">
         <button class="fd-tab active" data-page="vn-weather"
             onclick="fdShowPage('vn-weather', this)">🌦️ VN Weather</button>
+        <button class="fd-tab" data-page="dispatch"
+            onclick="fdShowPage('dispatch', this)">📋 Dispatch</button>
+        <button class="fd-tab" data-page="fuel-wb"
+            onclick="fdShowPage('fuel-wb', this)">⚖️ Fuel &amp; W&amp;B</button>
         <button class="fd-tab" data-page="storm-watch"
             onclick="fdShowPage('storm-watch', this)">🌀 Storm Watch</button>
     </nav>
@@ -192,6 +196,170 @@
             </div>
 
         </div>
+
+        <!-- ================= DISPATCH — SimBrief OFP / route ================= -->
+        <div id="dispatch" class="page-content">
+
+            <div class="tab-banner" style="background-color: #0066d6; color: #ffffff;">
+                📋 Dispatch · SimBrief OFP</div>
+
+            <div class="ops-bar">
+                <input type="text" class="metar-search ops-input" id="sbUser"
+                    placeholder="SimBrief username or pilot ID" autocomplete="off">
+                <button class="sched-refresh-btn" onclick="sbPull()">⇩ Pull SimBrief OFP</button>
+            </div>
+            <div class="sched-status" id="sbStatus">Enter your SimBrief username and pull the latest OFP.</div>
+
+            <!-- preset VN domestic routes -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🛫 Vietnam Domestic Route Library</span>
+                    <span class="collapsible-arrow" style="color: #4da6ff;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="route-chips" id="routeChips"></div>
+                    <div class="efb-note">↳ Standard one-way RNAV routings (AIRAC/SimBrief format).
+                        Selecting a route fills the plan below; pulling a SimBrief OFP overrides it
+                        with your real filed flight plan.</div>
+                </div>
+            </div>
+
+            <!-- OFP summary -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🧾 OFP Summary</span>
+                    <span class="collapsible-arrow" style="color: #00d666;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="ops-route-head" id="ofpHead"></div>
+                    <div class="ops-tiles" id="ofpTiles"></div>
+                    <div class="ops-route-str" id="ofpRoute"></div>
+                    <div class="ops-actions">
+                        <button class="metar-ext-link" onclick="skyVectorOpen()">🗺️ OPEN IN SKYVECTOR ▸</button>
+                        <button class="metar-ext-link" onclick="briefOpen()">📄 DISPATCH BRIEFING ▸</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- fuel plan -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>⛽ Fuel Plan</span>
+                    <span class="collapsible-arrow" style="color: #ffb300;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="ops-tiles" id="fuelTiles"></div>
+                    <div class="efb-note">↳ Trip = enroute burn · CONT = contingency ·
+                        ALTN = alternate burn · FR = final reserve · TOF = takeoff fuel ·
+                        BLOCK = ramp fuel. All figures converted to kilograms.</div>
+                </div>
+            </div>
+
+            <!-- navlog -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🧭 Navigation Log</span>
+                    <span class="collapsible-arrow" style="color: #b388ff;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="navlog-wrap">
+                        <table class="navlog" id="navlogTable"></table>
+                    </div>
+                    <div class="efb-note">↳ Waypoint · airway · leg distance · true track ·
+                        planned altitude, straight from the SimBrief navlog.</div>
+                </div>
+            </div>
+
+            <!-- route map drawn from navlog lat/lon -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🗺️ Route Profile</span>
+                    <span class="collapsible-arrow" style="color: #00b8c8;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <canvas id="routeCanvas" class="ops-canvas" width="900" height="380"></canvas>
+                    <div class="efb-note">↳ Vertical profile along the filed route — planned
+                        altitude against distance flown, with each named waypoint marked.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= FUEL &amp; WEIGHT / BALANCE ================= -->
+        <div id="fuel-wb" class="page-content">
+
+            <div class="tab-banner" style="background-color: #00838f; color: #ffffff;">
+                ⚖️ Fuel · Weight &amp; Balance</div>
+
+            <div class="ops-bar">
+                <label class="ops-lbl">Aircraft</label>
+                <select class="metar-search ops-input" id="wbType" onchange="wbTypeChange()">
+                    <option value="A320">AIRBUS A320-200</option>
+                    <option value="A321">AIRBUS A321-200</option>
+                </select>
+                <button class="sched-refresh-btn" onclick="wbFromOfp()">⇩ Load from OFP</button>
+            </div>
+
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>📥 Load Entry</span>
+                    <span class="collapsible-arrow" style="color: #4da6ff;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="wb-inputs">
+                        <div class="wb-field"><label>Passengers</label>
+                            <input type="number" id="wbPax" value="150" min="0" oninput="wbCompute()"></div>
+                        <div class="wb-field"><label>Weight / pax (kg)</label>
+                            <input type="number" id="wbPaxKg" value="84" min="0" oninput="wbCompute()"></div>
+                        <div class="wb-field"><label>Cargo (kg)</label>
+                            <input type="number" id="wbCargo" value="2000" min="0" oninput="wbCompute()"></div>
+                        <div class="wb-field"><label>Block fuel (kg)</label>
+                            <input type="number" id="wbBlock" value="6000" min="0" oninput="wbCompute()"></div>
+                        <div class="wb-field"><label>Taxi fuel (kg)</label>
+                            <input type="number" id="wbTaxi" value="200" min="0" oninput="wbCompute()"></div>
+                        <div class="wb-field"><label>Trip fuel (kg)</label>
+                            <input type="number" id="wbTrip" value="4200" min="0" oninput="wbCompute()"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>📊 Weight Summary &amp; Limits</span>
+                    <span class="collapsible-arrow" style="color: #00d666;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="wb-rows" id="wbRows"></div>
+                </div>
+            </div>
+
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🎯 CG Envelope &amp; THS Trim</span>
+                    <span class="collapsible-arrow" style="color: #ffb300;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="ops-tiles" id="cgTiles"></div>
+                    <canvas id="cgCanvas" class="ops-canvas" width="900" height="460"></canvas>
+                    <div class="efb-note" id="wbDisclaimer">↳ Simulator training aid — the CG
+                        envelope and THS setting use this project's simplified model, not certified
+                        AFM/FCOM data. Never use for real-world dispatch.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispatch briefing sheet overlay -->
+    <div class="wx-detail" id="briefSheet"
+        onclick="if (event.target === this) this.classList.remove('show')">
+        <div class="wx-sheet">
+            <button class="wx-close"
+                onclick="document.getElementById('briefSheet').classList.remove('show')">✕</button>
+            <div class="ops-actions" style="margin-bottom:12px;">
+                <button class="metar-ext-link" onclick="briefCopy()">⧉ COPY</button>
+                <button class="metar-ext-link" onclick="window.print()">🖨 PRINT</button>
+            </div>
+            <pre class="brief-body" id="briefBody"></pre>
+        </div>
     </div>
 
     <!-- Fullscreen overlays live at body level: position:fixed inside the
@@ -239,6 +407,11 @@
             const b = document.getElementById('fdThemeBtn');
             if (b) b.textContent = light ? '☾' : '☀';
             try { localStorage.setItem('fd-theme', light ? 'day' : 'dark'); } catch (e) { }
+            // canvases paint their own colours — repaint them on theme change
+            if (typeof wbCompute === 'function' && document.getElementById('cgCanvas')) {
+                wbCompute();
+                routeProfileDraw();
+            }
         }
 
         function fdToggleTheme() {
@@ -1283,6 +1456,594 @@
                 });
         }
 
+        /* ============================================================
+           DISPATCH — SimBrief OFP, route library, navlog, briefing
+           SimBrief's API sends Access-Control-Allow-Origin: * so the
+           browser fetches it directly — no bridge needed.
+           ============================================================ */
+
+        // Fleet data — figures supplied by the operator for this project.
+        // THS model is deliberately simple (see the on-page disclaimer).
+        const FLEET = {
+            A320: {
+                name: 'AIRBUS A320-200', dow: 42600, mzfw: 62500, mtow: 77000,
+                mlw: 66000, tas: 450, burn: 2400, mac: 4.193, lemac: 17.50,
+                cgMin: 15.0, cgMax: 38.0, thsK: 0.17
+            },
+            A321: {
+                name: 'AIRBUS A321-200', dow: 47500, mzfw: 73800, mtow: 89000,
+                mlw: 77800, tas: 455, burn: 2750, mac: 4.287, lemac: 19.30,
+                cgMin: 14.0, cgMax: 40.0, thsK: 0.19
+            }
+        };
+
+        // Standard one-way domestic routings
+        const VN_ROUTES = [
+            { from: 'VVNB', to: 'VVTS', label: 'HAN ➔ SGN', route: 'NOB Q1 DOVIN', nm: 630, fl: 'FL330/FL350' },
+            { from: 'VVTS', to: 'VVNB', label: 'SGN ➔ HAN', route: 'PATMA Q2 BISON', nm: 630, fl: 'FL340/FL360' },
+            { from: 'VVTS', to: 'VVDN', label: 'SGN ➔ DAD', route: 'PATMA W1 DAN', nm: 326, fl: 'FL320' },
+            { from: 'VVDN', to: 'VVTS', label: 'DAD ➔ SGN', route: 'DAN W2 DOVIN', nm: 326, fl: 'FL310' },
+            { from: 'VVTS', to: 'VVPQ', label: 'SGN ➔ PQC', route: 'TSN W12 PQ', nm: 165, fl: 'FL200' },
+            { from: 'VVTS', to: 'VVCR', label: 'SGN ➔ CXR', route: 'TSN W1 CR', nm: 170, fl: 'FL210' },
+            { from: 'VVDN', to: 'VVNB', label: 'DAD ➔ HAN', route: 'DAN Q2 BISON', nm: 335, fl: 'FL320' },
+            { from: 'VVNB', to: 'VVDN', label: 'HAN ➔ DAD', route: 'NOB Q1 DAN', nm: 335, fl: 'FL330' }
+        ];
+
+        let ofp = null;                 // normalised plan currently displayed
+
+        const LB2KG = 0.45359237;
+        const kg = (v, units) => {
+            const n = parseFloat(v);
+            if (!isFinite(n)) return null;
+            return Math.round(units === 'lbs' ? n * LB2KG : n);
+        };
+        const num = v => {
+            const n = parseFloat(v);
+            return isFinite(n) ? n : null;
+        };
+
+        function routeChipsRender() {
+            const bar = document.getElementById('routeChips');
+            bar.innerHTML = '';
+            VN_ROUTES.forEach(r => {
+                const b = document.createElement('button');
+                b.className = 'route-chip';
+                b.textContent = r.label;
+                b.title = r.from + ' → ' + r.to + ' · ' + r.route;
+                b.onclick = function () {
+                    document.querySelectorAll('.route-chip').forEach(x =>
+                        x.classList.toggle('active', x === b));
+                    ofp = {
+                        origin: r.from, dest: r.to, altn: null,
+                        route: r.from + ' SID ' + r.route + ' STAR ' + r.to,
+                        alt: null, flText: r.fl, type: null, dist: r.nm,
+                        pax: null, cargo: null, zfw: null, tow: null,
+                        fuel: {}, navlog: [], ete: null, source: 'Route library'
+                    };
+                    ofpRender();
+                    const st = document.getElementById('sbStatus');
+                    st.className = 'sched-status live';
+                    st.textContent = '● ' + r.label + ' — ' + r.nm + ' NM · ' + r.fl +
+                        ' (library routing; pull an OFP for fuel & navlog)';
+                };
+                bar.appendChild(b);
+            });
+        }
+
+        async function sbPull() {
+            const st = document.getElementById('sbStatus');
+            const user = (document.getElementById('sbUser').value || '').trim();
+            if (!user) {
+                st.className = 'sched-status mock';
+                st.textContent = '⚠ Enter your SimBrief username (or numeric pilot ID) first.';
+                return;
+            }
+            try { localStorage.setItem('fd-sbuser', user); } catch (e) { }
+            st.className = 'sched-status';
+            st.textContent = 'Fetching OFP from SimBrief…';
+
+            // numeric input = pilot ID, otherwise username
+            const key = /^\d+$/.test(user) ? 'userid' : 'username';
+            const url = 'https://www.simbrief.com/api/xml.fetcher.php?' + key + '=' +
+                encodeURIComponent(user) + '&json=1';
+            let d;
+            try {
+                d = await schedFetchJSON(url, 25000);
+            } catch (e) {
+                st.className = 'sched-status mock';
+                st.textContent = '⚠ SimBrief fetch failed — check the username, and that you ' +
+                    'have generated at least one OFP.';
+                return;
+            }
+            if (!d || !d.general || (d.fetch && d.fetch.status &&
+                String(d.fetch.status).toLowerCase().indexOf('success') < 0)) {
+                st.className = 'sched-status mock';
+                st.textContent = '⚠ SimBrief returned no usable OFP for “' + user + '”.';
+                return;
+            }
+
+            const u = (d.params && d.params.units) || 'lbs';
+            const f = d.fuel || {}, w = d.weights || {};
+            const altn = d.alternate && !Array.isArray(d.alternate)
+                ? d.alternate : (Array.isArray(d.alternate) ? d.alternate[0] : null);
+            ofp = {
+                origin: (d.origin || {}).icao_code || '—',
+                dest: (d.destination || {}).icao_code || '—',
+                altn: altn && altn.icao_code ? altn.icao_code : null,
+                route: d.general.route || '',
+                alt: num(d.general.initial_altitude),
+                flText: null,
+                type: (d.aircraft || {}).icaocode || null,
+                reg: (d.aircraft || {}).reg || null,
+                dist: num(d.general.route_distance),
+                pax: num(w.pax_count),
+                cargo: kg(w.cargo, u),
+                zfw: kg(w.est_zfw, u),
+                tow: kg(w.est_tow, u),
+                ete: num((d.times || {}).est_time_enroute),
+                units: u,
+                fuel: {
+                    // NB: SimBrief calls trip fuel "enroute_burn"
+                    trip: kg(f.enroute_burn, u), cont: kg(f.contingency, u),
+                    altn: kg(f.alternate_burn, u), reserve: kg(f.reserve, u),
+                    taxi: kg(f.taxi, u), tof: kg(f.plan_takeoff, u),
+                    block: kg(f.plan_ramp, u), extra: kg(f.extra, u)
+                },
+                navlog: (((d.navlog || {}).fix) || []).map(x => ({
+                    ident: x.ident, via: x.via_airway, dist: num(x.distance),
+                    trk: num(x.track_true), alt: num(x.altitude_feet),
+                    lat: num(x.pos_lat), lon: num(x.pos_long), stage: x.stage,
+                    name: x.name
+                })),
+                source: 'SimBrief'
+            };
+            ofpRender();
+            st.className = 'sched-status live';
+            st.textContent = '● OFP LOADED — ' + ofp.origin + ' → ' + ofp.dest +
+                (ofp.type ? ' · ' + ofp.type : '') + ' · ' + (ofp.dist || '—') + ' NM' +
+                (u === 'lbs' ? ' (converted lbs → kg)' : '');
+        }
+
+        function opsTile(label, big, small) {
+            return '<div class="wx-tile"><div class="wx-tile-label">' + label +
+                '</div><div class="wx-tile-big">' + big + '</div>' +
+                (small ? '<div class="wx-tile-small">' + small + '</div>' : '') + '</div>';
+        }
+
+        const fmtKg = v => (v === null || v === undefined) ? '—' : v.toLocaleString() + ' kg';
+
+        function ofpRender() {
+            const head = document.getElementById('ofpHead');
+            const tiles = document.getElementById('ofpTiles');
+            const rt = document.getElementById('ofpRoute');
+            const ft = document.getElementById('fuelTiles');
+            if (!ofp) return;
+
+            head.innerHTML = '';
+            const pair = document.createElement('div');
+            pair.className = 'ops-pair';
+            pair.textContent = ofp.origin + ' → ' + ofp.dest +
+                (ofp.altn ? '  (ALTN ' + ofp.altn + ')' : '');
+            const sub = document.createElement('div');
+            sub.className = 'ops-sub';
+            sub.textContent = [ofp.type, ofp.reg, ofp.source].filter(Boolean).join(' · ');
+            head.appendChild(pair);
+            head.appendChild(sub);
+
+            const hhmm = s => s === null ? '—' :
+                Math.floor(s / 3600) + 'h ' + String(Math.round((s % 3600) / 60)).padStart(2, '0') + 'm';
+            tiles.innerHTML =
+                opsTile('Cruise level', ofp.alt ? 'FL' + Math.round(ofp.alt / 100) : (ofp.flText || '—'), '') +
+                opsTile('Distance', (ofp.dist !== null ? ofp.dist.toLocaleString() : '—') + ' NM', '') +
+                opsTile('Est. time enroute', hhmm(ofp.ete), '') +
+                opsTile('Payload', ofp.pax !== null ? ofp.pax + ' pax' : '—',
+                    ofp.cargo !== null ? fmtKg(ofp.cargo) + ' cargo' : '') +
+                opsTile('ZFW', fmtKg(ofp.zfw), '') +
+                opsTile('TOW', fmtKg(ofp.tow), '');
+
+            rt.textContent = ofp.route || '—';
+
+            const f = ofp.fuel || {};
+            ft.innerHTML =
+                opsTile('Trip', fmtKg(f.trip), 'enroute burn') +
+                opsTile('Contingency', fmtKg(f.cont), '') +
+                opsTile('Alternate', fmtKg(f.altn), '') +
+                opsTile('Final reserve', fmtKg(f.reserve), '') +
+                opsTile('Taxi', fmtKg(f.taxi), '') +
+                opsTile('Takeoff fuel', fmtKg(f.tof), 'TOF') +
+                opsTile('Block', fmtKg(f.block), 'ramp fuel') +
+                opsTile('Extra', fmtKg(f.extra), '');
+
+            navlogRender();
+            routeProfileDraw();
+        }
+
+        function navlogRender() {
+            const t = document.getElementById('navlogTable');
+            t.innerHTML = '';
+            const rows = (ofp && ofp.navlog) || [];
+            const head = document.createElement('tr');
+            ['WAYPOINT', 'AIRWAY', 'DIST', 'TRK°T', 'ALT'].forEach(h => {
+                const th = document.createElement('th');
+                th.textContent = h;
+                head.appendChild(th);
+            });
+            t.appendChild(head);
+            if (!rows.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.className = 'navlog-empty';
+                td.textContent = 'Pull a SimBrief OFP to populate the navigation log.';
+                tr.appendChild(td);
+                t.appendChild(tr);
+                return;
+            }
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                if (r.stage) tr.className = 'stage-' + String(r.stage).toLowerCase();
+                [r.ident || '—', r.via || 'DCT',
+                 r.dist !== null ? r.dist + ' NM' : '—',
+                 r.trk !== null ? String(Math.round(r.trk)).padStart(3, '0') + '°' : '—',
+                 r.alt !== null ? (r.alt >= 10000 ? 'FL' + Math.round(r.alt / 100) : r.alt + ' ft') : '—'
+                ].forEach((v, i) => {
+                    const td = document.createElement('td');
+                    td.textContent = v;
+                    if (i === 0) td.className = 'navlog-id';
+                    tr.appendChild(td);
+                });
+                t.appendChild(tr);
+            });
+        }
+
+        // SkyVector refuses to be framed (X-Frame-Options: SAMEORIGIN),
+        // so the route opens in a real tab instead of a dead iframe.
+        function skyVectorOpen() {
+            if (!ofp) return;
+            const plan = (ofp.origin + ' ' +
+                (ofp.route || '').replace(/\s+/g, ' ').trim() + ' ' + ofp.dest).trim();
+            window.open('https://skyvector.com/?fpl=' + encodeURIComponent(plan),
+                '_blank', 'noopener');
+        }
+
+        function routeProfileDraw() {
+            const c = document.getElementById('routeCanvas');
+            if (!c || !c.getContext) return;
+            const g = c.getContext('2d');
+            const W = c.width, H = c.height;
+            const light = document.documentElement.classList.contains('light-mode');
+            const ink = light ? '#16181b' : '#ffffff';
+            const grid = light ? '#d4d8dd' : '#2c3743';
+            const sub = light ? '#5b6167' : '#8a99a8';
+            g.clearRect(0, 0, W, H);
+
+            const rows = (ofp && ofp.navlog) || [];
+            if (rows.length < 2) {
+                g.fillStyle = sub;
+                g.font = '600 15px Poppins, sans-serif';
+                g.textAlign = 'center';
+                g.fillText('Pull a SimBrief OFP to draw the vertical profile', W / 2, H / 2);
+                return;
+            }
+            const L = 52, R = 16, T = 18, B = 42;
+            let cum = 0;
+            const pts = rows.map(r => {
+                cum += (r.dist || 0);
+                return { x: cum, y: r.alt || 0, id: r.ident };
+            });
+            const maxX = Math.max(1, cum);
+            const maxY = Math.max(1000, Math.max.apply(null, pts.map(p => p.y)) * 1.15);
+            const px = v => L + (W - L - R) * (v / maxX);
+            const py = v => H - B - (H - T - B) * (v / maxY);
+
+            g.strokeStyle = grid;
+            g.lineWidth = 1;
+            g.fillStyle = sub;
+            g.font = '600 10px Poppins, sans-serif';
+            g.textAlign = 'right';
+            for (let i = 0; i <= 4; i++) {
+                const v = maxY * i / 4, y = py(v);
+                g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke();
+                g.fillText('FL' + Math.round(v / 100), L - 6, y + 3);
+            }
+
+            // filled profile
+            g.beginPath();
+            g.moveTo(px(0), py(pts[0].y));
+            pts.forEach(p => g.lineTo(px(p.x), py(p.y)));
+            g.lineTo(px(maxX), H - B);
+            g.lineTo(px(0), H - B);
+            g.closePath();
+            g.fillStyle = 'rgba(77, 166, 255, 0.18)';
+            g.fill();
+
+            g.beginPath();
+            g.moveTo(px(0), py(pts[0].y));
+            pts.forEach(p => g.lineTo(px(p.x), py(p.y)));
+            g.strokeStyle = '#4da6ff';
+            g.lineWidth = 2.5;
+            g.stroke();
+
+            // waypoint ticks — thin out so labels never collide
+            const step = Math.max(1, Math.ceil(pts.length / 14));
+            g.textAlign = 'center';
+            pts.forEach((p, i) => {
+                const x = px(p.x), y = py(p.y);
+                g.beginPath();
+                g.arc(x, y, 2.5, 0, Math.PI * 2);
+                g.fillStyle = '#4da6ff';
+                g.fill();
+                if (i % step === 0 || i === pts.length - 1) {
+                    g.save();
+                    g.translate(x, H - B + 8);
+                    g.rotate(-Math.PI / 4);
+                    g.fillStyle = sub;
+                    g.font = '600 9px Poppins, sans-serif';
+                    g.textAlign = 'right';
+                    g.fillText(p.id || '', 0, 0);
+                    g.restore();
+                }
+            });
+
+            g.fillStyle = ink;
+            g.font = '700 11px Poppins, sans-serif';
+            g.textAlign = 'left';
+            g.fillText(ofp.origin + ' → ' + ofp.dest + '  ·  ' +
+                Math.round(maxX).toLocaleString() + ' NM', L, T + 2);
+        }
+
+        /* ---------------- Fuel / Weight & Balance ---------------- */
+        function wbTypeChange() { wbCompute(); }
+
+        function wbFromOfp() {
+            if (!ofp) return;
+            const set = (id, v) => {
+                if (v !== null && v !== undefined) document.getElementById(id).value = v;
+            };
+            set('wbPax', ofp.pax);
+            set('wbCargo', ofp.cargo);
+            set('wbBlock', ofp.fuel.block);
+            set('wbTaxi', ofp.fuel.taxi);
+            set('wbTrip', ofp.fuel.trip);
+            if (ofp.type && /^A32[01]/.test(ofp.type)) {
+                document.getElementById('wbType').value = ofp.type.indexOf('A321') === 0 ? 'A321' : 'A320';
+            }
+            wbCompute();
+        }
+
+        // CG model: payload and fuel shift the CG from the DOW datum.
+        // Simplified project model — see the on-page disclaimer.
+        function wbCgPercent(ac, payload, fuel) {
+            const zfwCg = 25.0 + (payload / Math.max(1, ac.mzfw - ac.dow)) * 6.0;
+            const fuelShift = -(fuel / Math.max(1, 20000)) * 3.0;
+            return zfwCg + fuelShift;
+        }
+
+        function wbCompute() {
+            const ac = FLEET[document.getElementById('wbType').value] || FLEET.A320;
+            const val = id => Math.max(0, parseFloat(document.getElementById(id).value) || 0);
+            const pax = val('wbPax'), paxKg = val('wbPaxKg'), cargo = val('wbCargo');
+            const block = val('wbBlock'), taxi = val('wbTaxi'), trip = val('wbTrip');
+
+            const payload = pax * paxKg + cargo;
+            const zfw = ac.dow + payload;
+            const tow = zfw + Math.max(0, block - taxi);
+            const lw = tow - trip;
+
+            const rows = [
+                ['Dry operating weight (DOW)', ac.dow, null, null],
+                ['Payload (pax + cargo)', payload, null, null],
+                ['Zero fuel weight (ZFW)', zfw, ac.mzfw, 'MZFW'],
+                ['Takeoff weight (TOW)', tow, ac.mtow, 'MTOW'],
+                ['Landing weight (LW)', lw, ac.mlw, 'MLW']
+            ];
+            const box = document.getElementById('wbRows');
+            box.innerHTML = '';
+            rows.forEach(r => {
+                const [label, v, lim, limName] = r;
+                const row = document.createElement('div');
+                const over = lim !== null && v > lim;
+                row.className = 'wb-row' + (over ? ' over' : (lim !== null ? ' ok' : ''));
+                const l = document.createElement('span');
+                l.className = 'wb-row-l';
+                l.textContent = label;
+                const v1 = document.createElement('span');
+                v1.className = 'wb-row-v';
+                v1.textContent = Math.round(v).toLocaleString() + ' kg';
+                const m = document.createElement('span');
+                m.className = 'wb-row-m';
+                m.textContent = lim === null ? '' :
+                    (limName + ' ' + lim.toLocaleString() + ' kg · ' +
+                        (over ? 'OVER by ' + Math.round(v - lim).toLocaleString()
+                              : Math.round(lim - v).toLocaleString() + ' kg margin'));
+                row.appendChild(l);
+                row.appendChild(v1);
+                row.appendChild(m);
+                box.appendChild(row);
+            });
+
+            const cgZfw = wbCgPercent(ac, payload, 0);
+            const cgTow = wbCgPercent(ac, payload, Math.max(0, block - taxi));
+            const ths = (30.0 - cgTow) * ac.thsK;
+            const inEnv = cgTow >= ac.cgMin && cgTow <= ac.cgMax;
+
+            document.getElementById('cgTiles').innerHTML =
+                opsTile('CG at ZFW', cgZfw.toFixed(1) + '% MAC', '') +
+                opsTile('CG at TOW', cgTow.toFixed(1) + '% MAC',
+                    inEnv ? 'within envelope' : 'OUTSIDE ENVELOPE') +
+                opsTile('THS trim', Math.abs(ths).toFixed(1) + ' ' + (ths >= 0 ? 'UP' : 'DN'),
+                    'model: (30.0 − CG) × ' + ac.thsK) +
+                opsTile('MAC / LEMAC', ac.mac.toFixed(3) + ' m',
+                    'LEMAC ' + ac.lemac.toFixed(2) + ' m');
+
+            cgDraw(ac, zfw, tow, cgZfw, cgTow);
+        }
+
+        function cgDraw(ac, zfw, tow, cgZfw, cgTow) {
+            const c = document.getElementById('cgCanvas');
+            if (!c || !c.getContext) return;
+            const g = c.getContext('2d');
+            const W = c.width, H = c.height;
+            const light = document.documentElement.classList.contains('light-mode');
+            const ink = light ? '#16181b' : '#ffffff';
+            const grid = light ? '#d4d8dd' : '#2c3743';
+            const sub = light ? '#5b6167' : '#8a99a8';
+            g.clearRect(0, 0, W, H);
+
+            const L = 70, R = 22, T = 22, B = 46;
+            const xMin = ac.cgMin - 4, xMax = ac.cgMax + 4;
+            const yMin = ac.dow - 2000, yMax = ac.mtow + 3000;
+            const px = v => L + (W - L - R) * ((v - xMin) / (xMax - xMin));
+            const py = v => H - B - (H - T - B) * ((v - yMin) / (yMax - yMin));
+
+            // grid + axes
+            g.strokeStyle = grid;
+            g.lineWidth = 1;
+            g.fillStyle = sub;
+            g.font = '600 10px Poppins, sans-serif';
+            g.textAlign = 'right';
+            for (let w = Math.ceil(yMin / 5000) * 5000; w <= yMax; w += 5000) {
+                const y = py(w);
+                g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke();
+                g.fillText((w / 1000) + 't', L - 6, y + 3);
+            }
+            g.textAlign = 'center';
+            for (let x = Math.ceil(xMin / 5) * 5; x <= xMax; x += 5) {
+                const xx = px(x);
+                g.beginPath(); g.moveTo(xx, T); g.lineTo(xx, H - B); g.stroke();
+                g.fillText(x + '%', xx, H - B + 15);
+            }
+
+            // certified envelope box (CG limits × weight limits)
+            g.beginPath();
+            g.rect(px(ac.cgMin), py(ac.mtow),
+                px(ac.cgMax) - px(ac.cgMin), py(ac.dow) - py(ac.mtow));
+            g.fillStyle = 'rgba(0, 214, 102, 0.10)';
+            g.fill();
+            g.strokeStyle = '#00d666';
+            g.lineWidth = 2;
+            g.stroke();
+
+            // limit lines
+            const limLine = (w, label, color) => {
+                const y = py(w);
+                g.beginPath();
+                g.setLineDash([6, 4]);
+                g.moveTo(L, y); g.lineTo(W - R, y);
+                g.strokeStyle = color;
+                g.lineWidth = 1.5;
+                g.stroke();
+                g.setLineDash([]);
+                g.fillStyle = color;
+                g.font = '700 10px Poppins, sans-serif';
+                g.textAlign = 'left';
+                g.fillText(label, L + 6, y - 4);
+            };
+            limLine(ac.mtow, 'MTOW ' + ac.mtow.toLocaleString(), '#ff5252');
+            limLine(ac.mzfw, 'MZFW ' + ac.mzfw.toLocaleString(), '#ffb300');
+            limLine(ac.mlw, 'MLW ' + ac.mlw.toLocaleString(), '#4da6ff');
+
+            // ZFW → TOW vector
+            const p1 = [px(cgZfw), py(zfw)], p2 = [px(cgTow), py(tow)];
+            g.beginPath();
+            g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]);
+            g.strokeStyle = '#ffffff';
+            g.lineWidth = 2;
+            g.stroke();
+
+            const dot = (p, color, label) => {
+                g.beginPath();
+                g.arc(p[0], p[1], 6, 0, Math.PI * 2);
+                g.fillStyle = color;
+                g.fill();
+                g.strokeStyle = light ? '#ffffff' : '#0c0f13';
+                g.lineWidth = 2;
+                g.stroke();
+                g.fillStyle = ink;
+                g.font = '700 11px Poppins, sans-serif';
+                g.textAlign = 'left';
+                g.fillText(label, p[0] + 10, p[1] + 4);
+            };
+            dot(p1, '#ffb300', 'ZFW');
+            dot(p2, '#00d666', 'TOW');
+
+            g.fillStyle = sub;
+            g.font = '600 10px Poppins, sans-serif';
+            g.textAlign = 'center';
+            g.fillText('CENTRE OF GRAVITY (% MAC)', (L + W - R) / 2, H - 6);
+            g.fillText(ac.name, (L + W - R) / 2, T - 6);
+        }
+
+        /* ---------------- Dispatch briefing sheet ---------------- */
+        function briefText() {
+            if (!ofp) return 'No flight plan loaded.';
+            const ac = FLEET[document.getElementById('wbType').value] || FLEET.A320;
+            const pad = (s, n) => String(s === null || s === undefined ? '—' : s).padEnd(n);
+            const L = [];
+            L.push('=========================================================');
+            L.push('  THE FLIGHT DECK — OPERATIONS CENTER');
+            L.push('  DISPATCH BRIEFING / OFP SUMMARY');
+            L.push('=========================================================');
+            L.push('GENERATED : ' + new Date().toISOString().replace('T', ' ').slice(0, 19) + 'Z');
+            L.push('SOURCE    : ' + ofp.source);
+            L.push('');
+            L.push('ROUTING');
+            L.push('  ' + ofp.origin + ' -> ' + ofp.dest + (ofp.altn ? '   ALTN ' + ofp.altn : ''));
+            L.push('  AIRCRAFT : ' + (ofp.type || ac.name) + (ofp.reg ? '  REG ' + ofp.reg : ''));
+            L.push('  LEVEL    : ' + (ofp.alt ? 'FL' + Math.round(ofp.alt / 100) : (ofp.flText || '—')));
+            L.push('  DISTANCE : ' + (ofp.dist !== null ? ofp.dist + ' NM' : '—'));
+            L.push('  ROUTE    : ' + (ofp.route || '—'));
+            L.push('');
+            L.push('FUEL PLAN (kg)');
+            const f = ofp.fuel || {};
+            L.push('  TRIP  ' + pad(f.trip, 10) + 'CONT  ' + pad(f.cont, 10));
+            L.push('  ALTN  ' + pad(f.altn, 10) + 'FR    ' + pad(f.reserve, 10));
+            L.push('  TAXI  ' + pad(f.taxi, 10) + 'TOF   ' + pad(f.tof, 10));
+            L.push('  BLOCK ' + pad(f.block, 10) + 'EXTRA ' + pad(f.extra, 10));
+            L.push('');
+            L.push('WEIGHTS (kg)');
+            L.push('  PAX ' + pad(ofp.pax, 8) + ' CARGO ' + pad(ofp.cargo, 10));
+            L.push('  ZFW ' + pad(ofp.zfw, 8) + ' TOW   ' + pad(ofp.tow, 10));
+            const cgt = document.getElementById('cgTiles');
+            if (cgt && cgt.textContent.trim()) {
+                L.push('');
+                L.push('WEIGHT & BALANCE (' + ac.name + ')');
+                L.push('  ' + cgt.innerText.replace(/\n+/g, ' | ').replace(/\s{2,}/g, ' ').trim());
+            }
+            if ((ofp.navlog || []).length) {
+                L.push('');
+                L.push('NAVLOG');
+                L.push('  WPT      AIRWAY     DIST   TRK    ALT');
+                ofp.navlog.forEach(r => {
+                    L.push('  ' + pad(r.ident, 9) + pad(r.via || 'DCT', 11) +
+                        pad(r.dist !== null ? r.dist : '—', 7) +
+                        pad(r.trk !== null ? Math.round(r.trk) + '°' : '—', 7) +
+                        (r.alt !== null ? r.alt : '—'));
+                });
+            }
+            L.push('');
+            L.push('--- Simulator training use only. Not for real-world dispatch. ---');
+            return L.join('\n');
+        }
+
+        function briefOpen() {
+            document.getElementById('briefBody').textContent = briefText();
+            document.getElementById('briefSheet').classList.add('show');
+        }
+
+        function briefCopy() {
+            const t = briefText();
+            const done = () => {
+                const b = document.getElementById('briefBody');
+                const old = b.textContent;
+                b.textContent = '✓ Copied to clipboard\n\n' + old;
+                setTimeout(() => { b.textContent = old; }, 900);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(t).then(done, () => { });
+            }
+        }
+
         // ---- init ----
         document.addEventListener('DOMContentLoaded', function () {
             let saved = null;
@@ -1293,12 +2054,22 @@
             metarLoad();
             setInterval(metarLoad, SCHED_POLL_MS);
             document.getElementById('metarSearch').addEventListener('input', metarRender);
+
+            // dispatch / W&B
+            routeChipsRender();
+            try {
+                const u = localStorage.getItem('fd-sbuser');
+                if (u) document.getElementById('sbUser').value = u;
+            } catch (e) { }
+            document.getElementById('sbUser').addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') sbPull();
+            });
+            wbCompute();
+
             let page = null;
             try { page = localStorage.getItem('fd-page'); } catch (e) { }
-            if (page === 'storm-watch') {
-                fdShowPage('storm-watch',
-                    document.querySelector('.fd-tab[data-page="storm-watch"]'));
-            }
+            const btn = page && document.querySelector('.fd-tab[data-page="' + page + '"]');
+            if (btn) fdShowPage(page, btn);
         });
     </script>
 </body>

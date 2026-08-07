@@ -4800,3 +4800,315 @@ body {
         min-height: 380px;
     }
 }
+
+/* ============================================================
+   DISPATCH · FUEL & W&B — SimBrief OFP, navlog, CG envelope
+   ============================================================ */
+.ops-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.ops-input {
+    flex: 1;
+    min-width: 200px;
+    max-width: 340px;
+}
+
+.ops-lbl {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-sub);
+}
+
+/* route library chips */
+.route-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.route-chip {
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text-sub);
+    background: var(--airbus-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 7px 15px;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.route-chip:hover {
+    border-color: #4da6ff;
+    color: var(--text-main);
+}
+
+.route-chip.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #0066d6 0%, #00838f 100%);
+    border-color: #4da6ff;
+}
+
+/* OFP header */
+.ops-pair {
+    font-family: 'Courier New', monospace;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--qrh-blue-bright);
+    line-height: 1.1;
+}
+
+.ops-sub {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+    margin-top: 2px;
+    margin-bottom: 12px;
+}
+
+.ops-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+}
+
+.ops-route-str {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.6;
+    color: var(--text-main);
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 12px;
+    word-break: break-word;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+:root.light-mode .ops-route-str {
+    background-color: #f2f4f6;
+}
+
+.ops-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.ops-canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    background-color: rgba(0, 0, 0, 0.22);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+
+:root.light-mode .ops-canvas {
+    background-color: #f7f8fa;
+}
+
+/* navigation log table */
+.navlog-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.navlog {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.navlog th {
+    font-family: 'Poppins', sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    text-align: left;
+    color: var(--text-sub);
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+}
+
+:root.light-mode .navlog th {
+    background-color: #e8eaee;
+}
+
+.navlog td {
+    padding: 8px 14px;
+    color: var(--text-sub);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+.navlog .navlog-id {
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.navlog tr.stage-clb .navlog-id { color: #00d666; }
+.navlog tr.stage-dsc .navlog-id { color: #ffb300; }
+
+.navlog-empty {
+    font-family: 'Poppins', sans-serif;
+    text-align: center;
+    padding: 20px !important;
+}
+
+/* weight & balance entry */
+.wb-inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+}
+
+.wb-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.wb-field label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    color: var(--text-sub);
+}
+
+.wb-field input {
+    font-family: 'Courier New', monospace;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-main);
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 9px 12px;
+    width: 100%;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+:root.light-mode .wb-field input {
+    background-color: #f2f4f6;
+}
+
+.wb-field input:focus {
+    outline: none;
+    border-color: #4da6ff;
+}
+
+/* weight summary rows */
+.wb-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wb-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 14px;
+    align-items: baseline;
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-left: 5px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+
+:root.light-mode .wb-row {
+    background-color: #f2f4f6;
+}
+
+.wb-row.ok {
+    border-left-color: #00d666;
+}
+
+.wb-row.over {
+    border-left-color: #e53935;
+    background: linear-gradient(135deg, rgba(229, 57, 53, 0.22) 0%, rgba(229, 57, 53, 0.10) 100%);
+}
+
+.wb-row-l {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.wb-row-v {
+    font-family: 'Courier New', monospace;
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--text-main);
+    text-align: right;
+}
+
+.wb-row-m {
+    grid-column: 1 / -1;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-sub);
+}
+
+.wb-row.over .wb-row-m {
+    color: #ff8a80;
+}
+
+:root.light-mode .wb-row.over .wb-row-m {
+    color: #b71c1c;
+}
+
+/* briefing sheet */
+.brief-body {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-main);
+    white-space: pre-wrap;
+    word-break: break-word;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+@media print {
+    body * { visibility: hidden; }
+    #briefSheet, #briefSheet * { visibility: visible; }
+    #briefSheet { position: absolute; inset: 0; background: #fff; }
+    #briefSheet .wx-close, #briefSheet .ops-actions { display: none; }
+    .brief-body { color: #000; font-size: 11px; }
+}
+
+@media (max-width: 640px) {
+    .ops-pair {
+        font-size: 22px;
+        letter-spacing: 2px;
+    }
+
+    .ops-input {
+        max-width: none;
+    }
+}

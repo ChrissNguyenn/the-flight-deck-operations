@@ -1,0 +1,12 @@
+name: Probe TSN reachability
+on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Can an Actions runner reach the TSN MET portal?
+        run: |
+          curl -s -m 40 -o /dev/null -w "TSN http://113.161.121.25/ -> HTTP=%{http_code} connect=%{time_connect}s\n" \
+            http://113.161.121.25/ || echo "UNREACHABLE from GitHub runner (exit $?)"
