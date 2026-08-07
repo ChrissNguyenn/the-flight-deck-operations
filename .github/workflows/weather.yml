@@ -35,11 +35,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mine=${{ github.run_id }}
+          # NB: parse with jq, not grep — the payload is full of nested
+          # "id" fields (actor, repo, commit) whose values are smaller
+          # than a run id, which would make every run stand down.
           others=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
             "${{ github.api_url }}/repos/${{ github.repository }}/actions/workflows/weather.yml/runs?status=in_progress&per_page=50" \
-            | grep -o '"id": *[0-9]*' | grep -o '[0-9]*' || true)
+            | jq -r '.workflow_runs[].id' || true)
+          echo "this run: $mine"
+          echo "in-progress runs: ${others:-none}"
           for id in $others; do
-            if [ "$id" -lt "$mine" ]; then
+            if [ -n "$id" ] && [ "$id" -lt "$mine" ]; then
               echo "Run $id is already looping — this run stands down."
               echo "SKIP=1" >> $GITHUB_ENV
               break
