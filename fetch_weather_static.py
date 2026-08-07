@@ -181,8 +181,25 @@ if old_storms is None or now.minute % 5 == 2 or "--storms" in sys.argv:
     except Exception as exc:
         print(f"storms: JTWC fetch failed ({exc}) — keeping previous")
 
+    # -- Tan Son Nhat AMC products: VN SIGMETs, radar CMAX, WINTEM, SigWx.
+    # Only metadata/text goes in storms.json; the images are binaries and
+    # are mirrored separately (see fetch_radar_frames.py) because the site
+    # is HTTPS and the portal is plain HTTP — browsers block the mix.
+    for key, fn, label in (("vnsigmets", ab.fetch_tsn_sigmet, "SIGMET"),
+                           ("radar", ab.fetch_tsn_radar, "radar"),
+                           ("wintem", ab.fetch_tsn_wintem, "WINTEM"),
+                           ("sigwx", ab.fetch_tsn_sigwx, "SigWx")):
+        try:
+            v = fn()
+            storms[key] = v if key == "vnsigmets" else [
+                {"name": n, "path": p} for n, p in v]
+        except Exception as exc:
+            print(f"storms: TSN {label} fetch failed ({exc}) — keeping previous")
+            storms.setdefault(key, prev.get(key, []))
+
     unchanged = old_storms and all(
-        old_storms.get(k) == storms[k] for k in ("sigmets", "nhc", "jtwc"))
+        old_storms.get(k) == storms[k] for k in
+        ("sigmets", "nhc", "jtwc", "vnsigmets", "radar", "wintem", "sigwx"))
     if unchanged:
         print(f"storms.json: no change — {len(storms['sigmets'])} SIGMETs, "
               f"{len(storms['nhc']) + len(storms['jtwc'])} tropical systems")

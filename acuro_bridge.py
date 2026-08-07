@@ -59,7 +59,16 @@ MET_USER = (os.environ.get("MET_USERNAME") or os.environ.get("MET_USERNAME")
 MET_PASS = (os.environ.get("MET_PASSWORD") or os.environ.get("MET_PASSWORD")
              or _CFG.get("met_password", ""))
 
+# Tan Son Nhat AMC portal — PRIMARY source. Same portal software as the
+# AMO portal above (index.php?cat=&sub=, act=login/txtUsername/txtPassword)
+# but a different site, different credentials, and it additionally carries
+# radar CMAX, SIGMET, WINTEM and SigWx prog charts.
+TSN_BASE = (os.environ.get("TSN_MET_BASE") or _CFG.get("tsn_base", ""))
+TSN_USER = (os.environ.get("TSN_MET_USER") or _CFG.get("tsn_username", ""))
+TSN_PASS = (os.environ.get("TSN_MET_PASS") or _CFG.get("tsn_password", ""))
+
 SOURCE_LABEL = "VN MET"        # public-facing name of the authenticated feed
+TSN_LABEL = "TSN AMC"          # primary portal's public-facing name
 
 REFRESH_S = 60
 TAF_REFRESH_S = 600            # full TAF slot scan at most every 10 min
@@ -405,9 +414,196 @@ _cache = {"ts": 0.0, "payload": None}
 _cache_lock = threading.Lock()
 
 
+# ----------------------------------------------------------------------
+# Tan Son Nhat AMC portal (PRIMARY) — METAR + radar/SIGMET/WINTEM/SigWx
+# ----------------------------------------------------------------------
+_tsn_session = requests.Session()
+_tsn_session.headers["User-Agent"] = "Mozilla/5.0 (ACURO-EFB-Bridge)"
+_tsn_lock = threading.Lock()
+
+TSN_ROOT = TSN_BASE.rsplit("/", 1)[0] if TSN_BASE else ""
+
+# menu map, discovered from the portal's linkto(cat,sub) handlers
+TSN_PAGES = {
+    "metar": (1, 6), "radar": (1, 13), "sigmet": (2, 1),
+    "wintem": (3, 2), "sigwx": (3, 4),
+}
+
+
+def _tsn_login():
+    if not TSN_USER or not TSN_PASS:
+        raise RuntimeError("TSN portal credentials missing (secrets/config.json)")
+    r = _tsn_session.post(TSN_BASE, data={
+        "act": "login", "req": "2,0",
+        "txtUsername": TSN_USER, "txtPassword": TSN_PASS,
+        "cmdLogin": "Login",
+    }, timeout=HTTP_TIMEOUT)
+    r.raise_for_status()
+    if "login failed" in r.text.lower() or "logout" not in r.text.lower():
+        raise RuntimeError("TSN portal login rejected (check credentials)")
+
+
+def _tsn_get(page_or_params):
+    """GET a TSN portal page, re-logging in if the session expired."""
+    params = (dict(zip(("cat", "sub"), TSN_PAGES[page_or_params]))
+              if isinstance(page_or_params, str) else page_or_params)
+    with _tsn_lock:
+        r = _tsn_session.get(TSN_BASE, params=params, timeout=HTTP_TIMEOUT)
+        if "txtUsername" in r.text:            # bounced to the login form
+            _tsn_login()
+            r = _tsn_session.get(TSN_BASE, params=params, timeout=HTTP_TIMEOUT)
+        r.raise_for_status()
+        return r.text
+
+
+def _tsn_asset(path):
+    """Download a portal data file (radar/chart image) through the session."""
+    with _tsn_lock:
+        r = _tsn_session.get(f"{TSN_ROOT}/{path.lstrip('/')}", timeout=HTTP_TIMEOUT * 2)
+        r.raise_for_status()
+        return r.content
+
+
+def fetch_tsn_weather():
+    """METARs from the TSN portal's live board (all VN airports)."""
+    html = _tsn_get("metar")
+    metars, specis = {}, {}
+    for kind, icao, raw in _extract_reports(html):
+        target = metars if kind == "METAR" else (specis if kind == "SPECI" else None)
+        if target is None:
+            continue
+        key = _report_time_key(raw)
+        if icao not in target or _key_newer(key, target[icao][0]):
+            target[icao] = (key, raw)
+    if not metars and not specis:
+        raise RuntimeError("no reports parsed from TSN portal (page format change?)")
+    return ({i: v[1] for i, v in metars.items()},
+            {i: v[1] for i, v in specis.items()})
+
+
+def _tsn_rows(page, pattern):
+    """Run a regex over a product page and return its match tuples."""
+    return re.findall(pattern, _tsn_get(page))
+
+
+def fetch_tsn_radar(limit=6):
+    """Latest CMAX radar frames — newest first. Returns [(name, path)]."""
+    rows = _tsn_rows("radar",
+                     r"dumpimagefull\('(\w+)',\s*'([^']+\.cmax\.jpg)'")
+    out, seen = [], set()
+    day = datetime.now(timezone.utc)
+    for folder, pic in rows:
+        if pic in seen:
+            continue
+        seen.add(pic)
+        # portal stores products under data/YYYY/MM/DD/<folder>/<file>
+        stamp = re.match(r"(\d{4})(\d{2})(\d{2})", pic)
+        y, m, d = stamp.groups() if stamp else (day.strftime("%Y"),
+                                                day.strftime("%m"), day.strftime("%d"))
+        out.append((pic, f"data/{y}/{m}/{d}/{folder}/{pic}"))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _tsn_charts(page, folder="wafs-t4", limit=8):
+    rows = _tsn_rows(page, r"openpicture\((\d+),\s*'([^']+\.(?:gif|png|jpg))'\)")
+    out, seen = [], set()
+    now = datetime.now(timezone.utc)
+    for _tm, name in rows:
+        if name in seen:
+            continue
+        seen.add(name)
+        stamp = re.search(r"(\d{4})(\d{2})(\d{2})", name)
+        y, m, d = stamp.groups() if stamp else (now.strftime("%Y"),
+                                                now.strftime("%m"), now.strftime("%d"))
+        out.append((name, f"data/{y}/{m}/{d}/{folder}/{name}"))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def fetch_tsn_wintem(limit=8):
+    """Upper wind & temperature charts (WINTEM), newest first."""
+    return _tsn_charts("wintem", limit=limit)
+
+
+def fetch_tsn_sigwx(limit=6):
+    """Significant weather prognostic charts (SigWx PROG)."""
+    return _tsn_charts("sigwx", limit=limit)
+
+
+def fetch_tsn_sigmet():
+    """Vietnamese FIR SIGMETs — full decoded text per bulletin."""
+    html = _tsn_get("sigmet")
+    out = []
+    for d, n, title in re.findall(
+            r"openpicture\('([^']+)',\s*'([^']+)',\s*'([^']+)'\)", html):
+        try:
+            with _tsn_lock:
+                r = _tsn_session.get(f"{TSN_ROOT}/dumpfile.php",
+                                     params={"cat": 2, "sub": 1, "d": d,
+                                             "n": n, "t": title, "rl": "1"},
+                                     timeout=HTTP_TIMEOUT)
+            body = re.sub(r"<[^>]+>", " ", r.text)
+            body = unescape(re.sub(r"\s+", " ", body)).strip()
+            # keep only the bulletin itself, dropping the viewer's chrome
+            m = re.search(r"(W[SCV][A-Z]{2}\d{2}\s+VV.*?=)", body, re.S)
+            if m:
+                out.append({"id": title, "text": re.sub(r"\s+", " ", m.group(1)).strip()})
+        except Exception:
+            continue
+    return out
+
+
+def fetch_vn_weather():
+    """PRIMARY Tan Son Nhat AMC, BACKUP Da Nang AMO.
+
+    TSN's live board carries METARs for every VN airport but does not
+    expose SPECI/TAF in a machine-readable page, so the AMO portal (which
+    does) fills those in and covers any station TSN is missing."""
+    metars, specis, tafs = {}, {}, {}
+    used = []
+    try:
+        metars, specis = fetch_tsn_weather()
+        used.append(TSN_LABEL)
+    except Exception as exc:
+        print(f"[bridge] TSN portal unavailable ({exc}) — falling back to AMO")
+    try:
+        amo, amo_source = fetch_met_weather()
+        for st in amo:
+            icao = st["icao"]
+            if st.get("metar") and (icao not in metars or _key_newer(
+                    _report_time_key(st["metar"]), _report_time_key(metars[icao]))):
+                metars[icao] = st["metar"]
+            if st.get("speci"):
+                specis[icao] = st["speci"]
+            if st.get("taf"):
+                tafs[icao] = st["taf"]
+        used.append(SOURCE_LABEL)
+    except Exception as exc:
+        print(f"[bridge] AMO portal unavailable ({exc})")
+    if not metars and not specis:
+        raise RuntimeError("no reports from either Vietnamese portal")
+
+    # a SPECI only stands while it is newer than the routine METAR
+    specis = {i: r for i, r in specis.items()
+              if i not in metars or _key_newer(_report_time_key(r),
+                                               _report_time_key(metars[i]))}
+    stations = []
+    for icao in sorted(set(list(metars) + list(specis))):
+        raw = specis.get(icao) or metars.get(icao)
+        st = {"icao": icao, "name": STATION_NAMES.get(icao, icao),
+              "metar": metars.get(icao), "speci": specis.get(icao),
+              "taf": tafs.get(icao), "raw": raw}
+        st.update(parse_metar(raw))
+        stations.append(st)
+    return stations, " + ".join(used)
+
+
 def refresh_now():
     stations, source, errors = None, None, []
-    for fetcher in (fetch_met_weather, fetch_awc_weather):
+    for fetcher in (fetch_vn_weather, fetch_met_weather, fetch_awc_weather):
         try:
             stations, source = fetcher()
             break

@@ -5112,3 +5112,63 @@ body {
         max-width: none;
     }
 }
+
+/* ============================================================
+   RADAR CMAX loop player
+   ============================================================ */
+.radar-stage {
+    position: relative;
+    background-color: #0c0f13;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    min-height: 200px;
+}
+
+:root.light-mode .radar-stage {
+    background-color: #f2f4f6;
+}
+
+.radar-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    cursor: zoom-in;
+}
+
+.radar-frameno {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.65);
+    border-radius: 8px;
+    padding: 3px 10px;
+}
+
+.radar-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.radar-slider {
+    flex: 1;
+    min-width: 140px;
+    accent-color: #ff5252;
+    cursor: pointer;
+}
+
+.radar-time {
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    font-weight: 800;
+    color: #ff5252;
+    min-width: 74px;
+    text-align: right;
+}

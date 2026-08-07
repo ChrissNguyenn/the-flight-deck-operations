@@ -43,10 +43,14 @@ jobs:
           MET_BASE_URL: ${{ secrets.MET_BASE_URL }}
           MET_USERNAME: ${{ secrets.MET_USERNAME }}
           MET_PASSWORD: ${{ secrets.MET_PASSWORD }}
+          TSN_MET_BASE: ${{ secrets.TSN_MET_BASE }}
+          TSN_MET_USER: ${{ secrets.TSN_MET_USER }}
+          TSN_MET_PASS: ${{ secrets.TSN_MET_PASS }}
         run: |
           git config user.name "acuro-weather-bot"
           git config user.email "actions@users.noreply.github.com"
           end=$((SECONDS + 20400))        # ~5h40m, exits before timeout
+          radar_at=0
           while [ $SECONDS -lt $end ]; do
             iter=$SECONDS
             python fetch_weather_static.py || echo "::warning::fetch failed — retrying next minute"
@@ -61,6 +65,35 @@ jobs:
               fi
               git push origin HEAD:main || echo "::warning::push failed — retrying next change"
             fi
+
+            # Radar/chart imagery every 5 min. It lives on the orphan branch
+            # `wx-radar`, force-pushed as a SINGLE commit each time: these are
+            # ~130 kB binaries refreshing all day, so keeping them on main
+            # would add hundreds of MB of permanent history. Rebuilding the
+            # branch from scratch keeps the mirror at its current size.
+            if [ $((SECONDS - radar_at)) -ge 300 ] || [ $radar_at -eq 0 ]; then
+              radar_at=$SECONDS
+              rm -rf /tmp/radar && mkdir -p /tmp/radar
+              if python fetch_radar_frames.py /tmp/radar; then
+                rm -rf /tmp/rmirror
+                git worktree remove --force /tmp/rmirror 2>/dev/null || true
+                git worktree add --detach /tmp/rmirror >/dev/null 2>&1
+                ( cd /tmp/rmirror
+                  git checkout --orphan wx-radar >/dev/null 2>&1
+                  git rm -rqf . >/dev/null 2>&1 || true
+                  cp -r /tmp/radar/* .
+                  git add -A
+                  git -c user.name="acuro-weather-bot" \
+                      -c user.email="actions@users.noreply.github.com" \
+                      commit -qm "radar mirror $(date -u '+%d %b %H:%MZ')" || true
+                  git push -qf origin wx-radar || echo "::warning::radar push failed"
+                )
+                git worktree remove --force /tmp/rmirror 2>/dev/null || true
+              else
+                echo "::warning::radar mirror failed — keeping previous frames"
+              fi
+            fi
+
             took=$((SECONDS - iter))
             [ $took -lt 60 ] && sleep $((60 - took))
           done

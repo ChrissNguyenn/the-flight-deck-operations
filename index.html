@@ -50,6 +50,8 @@
             onclick="fdShowPage('dispatch', this)">📋 Dispatch</button>
         <button class="fd-tab" data-page="fuel-wb"
             onclick="fdShowPage('fuel-wb', this)">⚖️ Fuel &amp; W&amp;B</button>
+        <button class="fd-tab" data-page="vn-radar"
+            onclick="fdShowPage('vn-radar', this)">📡 Radar &amp; Charts</button>
         <button class="fd-tab" data-page="storm-watch"
             onclick="fdShowPage('storm-watch', this)">🌀 Storm Watch</button>
     </nav>
@@ -195,6 +197,82 @@
                 </div>
             </div>
 
+        </div>
+
+        <!-- ============ RADAR CMAX · WINTEM · SIGWX · VN SIGMET ============ -->
+        <div id="vn-radar" class="page-content">
+
+            <div class="tab-banner" style="background-color: #d32f2f; color: #ffffff;">
+                📡 Tan Son Nhat Radar &amp; Aviation Charts</div>
+
+            <div class="sched-status" id="radarStatus">Loading radar mirror…</div>
+
+            <!-- CMAX loop player -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>📡 Weather Radar CMAX — Loop</span>
+                    <span class="collapsible-arrow" style="color: #ff5252;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="radar-stage">
+                        <img id="radarImg" class="radar-img" src="" alt="Tan Son Nhat CMAX radar"
+                            onclick="radarZoom()">
+                        <div class="radar-frameno" id="radarFrameNo"></div>
+                    </div>
+                    <div class="radar-controls">
+                        <button class="storm-chip" id="radarPlayBtn" onclick="radarToggle()">⏸ Pause</button>
+                        <button class="storm-chip" onclick="radarStep(-1)">⏮ Step</button>
+                        <button class="storm-chip" onclick="radarStep(1)">⏭ Step</button>
+                        <input type="range" class="radar-slider" id="radarSlider" min="0" max="5"
+                            value="5" oninput="radarShow(+this.value, true)">
+                        <span class="radar-time" id="radarTime">—</span>
+                    </div>
+                    <div class="efb-note">↳ Composite Maximum reflectivity (CMAX, dBZ) from the
+                        Tan Son Nhat Doppler radar — 6 most recent frames, new sweep every
+                        5 minutes. Green ≈ light, yellow/orange ≈ heavy, red/magenta ≈ severe
+                        convection. Tap the image to zoom.</div>
+                </div>
+            </div>
+
+            <!-- Vietnamese SIGMETs -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>⚠️ Vietnam SIGMET / Warnings</span>
+                    <span class="collapsible-arrow" style="color: #ffb300;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="sig-list" id="vnSigList"></div>
+                    <div class="efb-note">↳ SIGMETs in force for the Hanoi (VVHN) and Ho Chi Minh
+                        (VVTS) FIRs, issued by the Vietnamese meteorological watch office.</div>
+                </div>
+            </div>
+
+            <!-- SigWx prog charts -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🗺️ Significant Weather Prog Charts (SigWx)</span>
+                    <span class="collapsible-arrow" style="color: #00d666;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="storm-grid" id="sigwxGrid"></div>
+                    <div class="efb-note">↳ WAFS significant weather prognostic charts — jet
+                        streams, CAT, CB areas, tropopause heights and fronts. VN = Vietnam
+                        area, EU/NS/US = wider WAFC coverage.</div>
+                </div>
+            </div>
+
+            <!-- WINTEM -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>💨 Upper Wind &amp; Temperature (WINTEM)</span>
+                    <span class="collapsible-arrow" style="color: #4da6ff;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="storm-grid" id="wintemGrid"></div>
+                    <div class="efb-note">↳ Forecast upper wind and temperature charts by flight
+                        level and validity hour, straight from the WAFS feed.</div>
+                </div>
+            </div>
         </div>
 
         <!-- ================= DISPATCH — SimBrief OFP / route ================= -->
@@ -1174,6 +1252,7 @@
                 b.classList.toggle('active', b === btn));
             try { localStorage.setItem('fd-page', id); } catch (e) { }
             if (id === 'storm-watch') stormInit();
+            if (id === 'vn-radar') { radarInit(); stormInit(); }
         }
 
         // Heavy world imagery + the Windy iframe load only on first open
@@ -1284,6 +1363,7 @@
             stormData = payload;
             tcRender();
             sigRender();
+            if (document.getElementById('vnSigList')) vnSigRender();
             if (!payload.updated) {
                 status.className = 'sched-status mock';
                 status.textContent = '◌ OFFLINE PREVIEW — sample storm data';
@@ -1454,6 +1534,157 @@
                     card.onclick = function () { card.classList.toggle('open'); };
                     list.appendChild(card);
                 });
+        }
+
+        /* ============================================================
+           RADAR CMAX / WINTEM / SIGWX / VN SIGMET
+           The TSN portal is http:// behind a login, so the Actions loop
+           mirrors its imagery to the `wx-radar` branch and the SIGMET
+           text into data/storms.json.
+           ============================================================ */
+        const RADAR_MIRROR = 'https://raw.githubusercontent.com/ChrissNguyenn/' +
+            'the-flight-deck-operations/wx-radar/';
+        const RADAR_POLL_MS = 300000;
+        let radarFrames = [], radarIdx = 0, radarTimer = null, radarInited = false;
+
+        function radarInit() {
+            if (radarInited) return;
+            radarInited = true;
+            radarLoad();
+            setInterval(radarLoad, RADAR_POLL_MS);
+        }
+
+        // "2026080708401600dBZ.cmax.jpg" -> "08:40Z"
+        function radarStamp(name) {
+            const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(name || '');
+            return m ? m[4] + ':' + m[5] + 'Z' : (name || '');
+        }
+
+        async function radarLoad() {
+            const st = document.getElementById('radarStatus');
+            let man = null;
+            try {
+                man = await schedFetchJSON(RADAR_MIRROR + 'manifest.json?t=' + Date.now(), 15000);
+            } catch (e) { }
+
+            if (man && (man.radar || []).length) {
+                // manifest lists newest first — play oldest -> newest
+                radarFrames = man.radar.slice().reverse();
+                const sl = document.getElementById('radarSlider');
+                sl.max = String(radarFrames.length - 1);
+                sl.value = String(radarFrames.length - 1);
+                radarShow(radarFrames.length - 1);
+                if (!radarTimer) radarPlay();
+                const age = man.updated
+                    ? Math.round((Date.now() - new Date(man.updated).getTime()) / 60000) : null;
+                st.className = 'sched-status' + (age !== null && age > 30 ? ' mock' : ' live');
+                st.textContent = (age !== null && age > 30 ? '⚠ ' + age + ' MIN OLD — ' : '● LIVE — ') +
+                    radarFrames.length + ' CMAX frames · TSN AMC radar' +
+                    (age !== null ? ' · updated ' + age + ' min ago' : '');
+                chartGrid('sigwxGrid', man.sigwx, 'SigWx');
+                chartGrid('wintemGrid', man.wintem, 'WINTEM');
+            } else {
+                st.className = 'sched-status mock';
+                st.textContent = '◌ Radar mirror not published yet — the weather loop builds ' +
+                    'it on its next 5-minute cycle.';
+            }
+            vnSigRender();
+        }
+
+        function chartGrid(id, items, label) {
+            const box = document.getElementById(id);
+            box.innerHTML = '';
+            (items || []).forEach(c => {
+                // UWT-050-EU-...-00F06.gif / SIG-SWH-VN-...-00F24.gif
+                const m = /^(?:UWT-(\d{3})|SIG-(\w+))-(\w+)-\d{8}-(\d{2})F(\d{2})/.exec(c.name);
+                const cap = m
+                    ? (m[1] ? 'FL' + m[1] + ' · ' : (m[2] ? m[2] + ' · ' : '')) +
+                      m[3] + ' · base ' + m[4] + 'Z +' + m[5] + 'h'
+                    : c.name;
+                stormImg(box, c.url, label + ' — ' + cap);
+            });
+            if (!box.children.length) {
+                const n = document.createElement('div');
+                n.className = 'efb-note';
+                n.textContent = '↳ No ' + label + ' charts in the current mirror.';
+                box.appendChild(n);
+            }
+        }
+
+        function radarShow(i, manual) {
+            if (!radarFrames.length) return;
+            radarIdx = (i + radarFrames.length) % radarFrames.length;
+            const f = radarFrames[radarIdx];
+            document.getElementById('radarImg').src = f.url;
+            document.getElementById('radarSlider').value = String(radarIdx);
+            document.getElementById('radarTime').textContent = radarStamp(f.name);
+            document.getElementById('radarFrameNo').textContent =
+                (radarIdx + 1) + ' / ' + radarFrames.length;
+            if (manual) radarPause();
+        }
+
+        function radarStep(d) { radarPause(); radarShow(radarIdx + d); }
+
+        function radarPlay() {
+            if (radarTimer) return;
+            // hold the newest frame a beat longer, like a real radar loop
+            radarTimer = setInterval(() => {
+                radarShow(radarIdx + 1);
+            }, 700);
+            document.getElementById('radarPlayBtn').textContent = '⏸ Pause';
+        }
+
+        function radarPause() {
+            if (radarTimer) { clearInterval(radarTimer); radarTimer = null; }
+            document.getElementById('radarPlayBtn').textContent = '▶ Play';
+        }
+
+        function radarToggle() { radarTimer ? radarPause() : radarPlay(); }
+
+        function radarZoom() {
+            const f = radarFrames[radarIdx];
+            if (!f) return;
+            document.getElementById('satZoomImg').src = f.url;
+            document.getElementById('satZoom').classList.add('show');
+        }
+
+        function vnSigRender() {
+            const box = document.getElementById('vnSigList');
+            box.innerHTML = '';
+            const sigs = (stormData && stormData.vnsigmets) || [];
+            if (!sigs.length) {
+                const n = document.createElement('div');
+                n.className = 'efb-note';
+                n.textContent = stormData
+                    ? '↳ No SIGMET currently in force for the Vietnamese FIRs.'
+                    : '↳ Loading SIGMET data…';
+                box.appendChild(n);
+                return;
+            }
+            sigs.forEach(s => {
+                const hz = /\bTS\b/.test(s.text) ? 'ts' :
+                    (/\bTURB\b/.test(s.text) ? 'turb' :
+                        (/\bTC\b/.test(s.text) ? 'tc' : (/\bICE\b/.test(s.text) ? 'ice' : 'x')));
+                const card = document.createElement('div');
+                card.className = 'sig-card open hz-' + hz;
+                const head = document.createElement('div');
+                head.className = 'sig-head';
+                const tag = document.createElement('span');
+                tag.className = 'sig-hz';
+                tag.textContent = /VVHN/.test(s.text) ? 'HANOI FIR' :
+                    (/VVTS/.test(s.text) ? 'HO CHI MINH FIR' : 'VN FIR');
+                const idEl = document.createElement('span');
+                idEl.className = 'sig-fir';
+                idEl.textContent = s.id;
+                head.appendChild(tag);
+                head.appendChild(idEl);
+                card.appendChild(head);
+                const raw = document.createElement('div');
+                raw.className = 'sig-raw';
+                raw.textContent = s.text;
+                card.appendChild(raw);
+                box.appendChild(card);
+            });
         }
 
         /* ============================================================
