@@ -5,9 +5,9 @@ name: Update Vietnam Weather
 # GitHub throttles `schedule:` crons brutally (observed 1-3 h real gaps),
 # so a run-per-minute design can't work. Instead ONE job runs a fetch/
 # commit loop every 60 s for ~5h40m (under the 6 h job limit), and the
-# half-hourly cron keeps a single QUEUED run waiting in the concurrency
-# group — it takes over the moment the running loop ends, so coverage is
-# continuous with no external pinger.
+# half-hourly cron starts a fresh loop once the previous one has ended.
+# Runs that find an older loop already going stand down immediately, so
+# extra triggers (manual, or an external pinger) are harmless no-ops.
 
 on:
   schedule:
@@ -17,28 +17,50 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
-# One loop at a time; new runs queue instead of cancelling the loop
-concurrency:
-  group: weather-update
-  cancel-in-progress: false
+# NO `concurrency:` block on purpose. GitHub cancels an already-PENDING
+# run whenever a newer one joins the same concurrency group, so any
+# external pinger firing faster than the queue drains would cancel the
+# loop before it ever started. Single-instance is enforced below instead,
+# by standing down if an older run of this workflow is already going.
 
 jobs:
   weather:
     runs-on: ubuntu-latest
     timeout-minutes: 355        # hard stop under the 6 h job limit
     steps:
+      - name: Stand down if a loop is already running
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mine=${{ github.run_id }}
+          others=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/actions/workflows/weather.yml/runs?status=in_progress&per_page=50" \
+            | grep -o '"id": *[0-9]*' | grep -o '[0-9]*' || true)
+          for id in $others; do
+            if [ "$id" -lt "$mine" ]; then
+              echo "Run $id is already looping — this run stands down."
+              echo "SKIP=1" >> $GITHUB_ENV
+              break
+            fi
+          done
+
       - uses: actions/checkout@v4
+        if: env.SKIP != '1'
 
       - uses: actions/setup-python@v5
+        if: env.SKIP != '1'
         with:
           python-version: "3.12"
           cache: pip            # reuse installed deps — runs start faster
 
       - name: Install dependencies
+        if: env.SKIP != '1'
         run: pip install -r requirements.txt
 
       - name: Fetch weather every 60 s, commit only on change
+        if: env.SKIP != '1'
         env:
           MET_BASE_URL: ${{ secrets.MET_BASE_URL }}
           MET_USERNAME: ${{ secrets.MET_USERNAME }}
