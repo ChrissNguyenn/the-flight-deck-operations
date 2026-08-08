@@ -5172,3 +5172,284 @@ body {
     min-width: 74px;
     text-align: right;
 }
+
+/* ============================================================
+   LIDO OFP · NAVIGRAPH CHARTS · STAFF ROSTER & DUTY
+   ============================================================ */
+.lido {
+    font-family: 'Courier New', monospace;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.lido-head {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #ffffff;
+    background: linear-gradient(135deg, #0066d6 0%, #00838f 100%);
+    border-radius: 8px 8px 0 0;
+    padding: 11px 14px;
+}
+
+.lido-sect {
+    border: 1px solid var(--border-color);
+    border-top: none;
+    padding: 10px 14px;
+}
+
+.lido-sect:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+.lido-sect-h {
+    font-family: 'Poppins', sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    color: var(--text-sub);
+    margin-bottom: 6px;
+}
+
+.lido-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    padding: 3px 0;
+    border-bottom: 1px dotted rgba(128, 128, 128, 0.25);
+}
+
+.lido-row:last-child { border-bottom: none; }
+
+.lido-row.lido-total {
+    color: var(--qrh-blue-bright);
+    border-top: 1px solid var(--border-color);
+    margin-top: 4px;
+    padding-top: 6px;
+    font-size: 15px;
+}
+
+.lido-row.lido-over {
+    color: #ffffff;
+    background: #b71c1c;
+    border-radius: 5px;
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+/* Navigraph viewer */
+.ng-wrap {
+    aspect-ratio: 16 / 11;
+    min-height: 460px;
+}
+
+/* ---- staff login ---- */
+.staff-pick {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.staff-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-main);
+    background: var(--airbus-card);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 20px;
+    cursor: pointer;
+}
+
+.staff-btn.active {
+    border-color: #4da6ff;
+    background: linear-gradient(135deg, rgba(0, 102, 214, 0.25), rgba(0, 131, 143, 0.18));
+}
+
+.staff-emoji { font-size: 26px; }
+
+/* ---- duty card ---- */
+.duty-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background-color: var(--airbus-card);
+    border: 1px solid var(--border-color);
+    border-left: 6px solid #00b8c8;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+
+.duty-avatar {
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0066d6, #00838f);
+    flex: none;
+}
+
+.duty-name {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.duty-state {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--qrh-green-bright);
+}
+
+.duty-state.flying { color: var(--airbus-amber); }
+
+/* ---- LED stopwatch ---- */
+.stopwatch {
+    font-family: 'Courier New', monospace;
+    font-size: 58px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    text-align: center;
+    color: #4da6ff;
+    background: #05080b;
+    border: 2px solid #4da6ff;
+    border-radius: 14px;
+    padding: 16px 10px 12px;
+    margin: 14px 0 6px;
+    text-shadow: 0 0 14px rgba(77, 166, 255, 0.75);
+    box-shadow: inset 0 0 26px rgba(77, 166, 255, 0.16),
+        0 0 18px rgba(77, 166, 255, 0.22);
+}
+
+.stopwatch.running {
+    color: var(--airbus-amber);
+    border-color: var(--airbus-amber);
+    text-shadow: 0 0 16px rgba(255, 179, 0, 0.8);
+    box-shadow: inset 0 0 26px rgba(255, 179, 0, 0.18),
+        0 0 22px rgba(255, 179, 0, 0.3);
+    animation: sw-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes sw-pulse {
+    0%, 100% { box-shadow: inset 0 0 26px rgba(255, 179, 0, 0.18), 0 0 18px rgba(255, 179, 0, 0.25); }
+    50%      { box-shadow: inset 0 0 30px rgba(255, 179, 0, 0.28), 0 0 30px rgba(255, 179, 0, 0.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stopwatch.running { animation: none; }
+}
+
+.stopwatch-sub {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-sub);
+    margin-bottom: 10px;
+}
+
+/* ---- roster matrix ---- */
+.roster-matrix {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.roster-day {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.roster-day-h {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #ffffff;
+    background: linear-gradient(135deg, #0066d6, #00838f);
+    padding: 9px 12px;
+}
+
+.roster-cell {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--airbus-card);
+    border: none;
+    border-top: 1px solid var(--border-color);
+    border-left: 5px solid transparent;
+    padding: 10px 12px;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+}
+
+.roster-cell.sh-morning { border-left-color: #ffb300; }
+.roster-cell.sh-evening { border-left-color: #7c4dff; }
+.roster-cell.sh-full    { border-left-color: #00d666; }
+
+.roster-cell.mine {
+    background: linear-gradient(135deg, rgba(0, 214, 102, 0.24), rgba(0, 131, 143, 0.14));
+}
+
+.roster-cell.taken { opacity: 0.62; }
+
+.roster-cell-t {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.roster-cell-w {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-sub);
+    margin-top: 2px;
+}
+
+.roster-flex {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.roster-flex input {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+:root.light-mode .roster-flex input { background-color: #f2f4f6; }
+
+.roster-flex-tag {
+    font-size: 11px;
+    font-weight: 800;
+    color: #fff;
+    background: #00838f;
+    border-radius: 10px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+@media (max-width: 640px) {
+    .stopwatch { font-size: 40px; letter-spacing: 2px; }
+    .ng-wrap { aspect-ratio: 3 / 4; min-height: 420px; }
+    .lido-row { font-size: 13px; }
+}

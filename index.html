@@ -52,6 +52,10 @@
             onclick="fdShowPage('fuel-wb', this)">⚖️ Fuel &amp; W&amp;B</button>
         <button class="fd-tab" data-page="vn-radar"
             onclick="fdShowPage('vn-radar', this)">📡 Radar &amp; Charts</button>
+        <button class="fd-tab" data-page="navigraph-charts"
+            onclick="fdShowPage('navigraph-charts', this)">📑 Navigraph / LIDO Charts</button>
+        <button class="fd-tab" data-page="staff-roster"
+            onclick="fdShowPage('staff-roster', this)">👥 Staff Roster &amp; Duty</button>
         <button class="fd-tab" data-page="storm-watch"
             onclick="fdShowPage('storm-watch', this)">🌀 Storm Watch</button>
     </nav>
@@ -319,6 +323,17 @@
                 </div>
             </div>
 
+            <!-- LIDO-format OFP -->
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>📋 LIDO OFP — Operational Flight Plan</span>
+                    <span class="collapsible-arrow" style="color: #ffb300;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="lido" id="lidoSheet"></div>
+                </div>
+            </div>
+
             <!-- fuel plan -->
             <div class="efb-card open">
                 <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
@@ -358,6 +373,164 @@
                     <canvas id="routeCanvas" class="ops-canvas" width="900" height="380"></canvas>
                     <div class="efb-note">↳ Vertical profile along the filed route — planned
                         altitude against distance flown, with each named waypoint marked.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ NAVIGRAPH / LIDO ELECTRONIC CHARTS ============ -->
+        <div id="navigraph-charts" class="page-content">
+
+            <div class="tab-banner" style="background-color: #1a237e; color: #ffffff;">
+                📑 Navigraph / LIDO Electronic Charts</div>
+
+            <div class="ops-bar">
+                <button class="sched-refresh-btn" onclick="ngOpenLogin()">🔐 Đăng nhập Navigraph / LIDO</button>
+                <button class="metar-ext-link" onclick="ngOpenTab()">↗ MỞ TAB MỚI</button>
+                <div class="sched-status" id="ngStatus" style="flex:1;min-width:200px;">
+                    Chưa kết nối — đăng nhập để xem chart.</div>
+            </div>
+
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🛫 Sân bay &amp; danh mục chart</span>
+                    <span class="collapsible-arrow" style="color: #4da6ff;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="route-chips" id="ngAirports"></div>
+                    <div class="storm-chips" id="ngCats"></div>
+                    <div class="efb-note">↳ TAXI = sơ đồ sân đỗ/đường lăn · SID = khởi hành tiêu
+                        chuẩn · STAR = đến tiêu chuẩn · APPR = tiếp cận ILS/RNP. Chọn sân bay và
+                        danh mục để mở đúng nhóm chart trong Navigraph.</div>
+                </div>
+            </div>
+
+            <div class="efb-card open">
+                <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                    <span>🗺️ Chart Viewer</span>
+                    <span class="collapsible-arrow" style="color: #00d666;">▼</span>
+                </div>
+                <div class="efb-card-body">
+                    <div class="windy-wrap ng-wrap">
+                        <iframe id="ngFrame" title="Navigraph Charts" src="about:blank"
+                            allow="fullscreen"></iframe>
+                    </div>
+                    <div class="efb-note">↳ Navigraph Cloud Charts cần tài khoản có subscription.
+                        Nếu trình duyệt chặn cookie bên thứ ba (Safari/iPad thường chặn), hãy bấm
+                        <b>MỞ TAB MỚI</b> để đăng nhập rồi quay lại — phiên đăng nhập sẽ dùng chung.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ STAFF ROSTER &amp; DUTY / WAGE ============ -->
+        <div id="staff-roster" class="page-content">
+
+            <div class="tab-banner" style="background-color: #00838f; color: #ffffff;">
+                👥 Staff Roster &amp; Duty · Chấm công hướng dẫn bay</div>
+
+            <!-- login -->
+            <div id="staffLogin">
+                <div class="efb-card open">
+                    <div class="efb-card-header">
+                        <span>🔐 Đăng nhập nhân viên</span>
+                    </div>
+                    <div class="efb-card-body">
+                        <div class="staff-pick" id="staffPick"></div>
+                        <div class="ops-bar" style="margin-top:12px;">
+                            <label class="ops-lbl">PIN</label>
+                            <input type="password" class="metar-search ops-input" id="staffPin"
+                                inputmode="numeric" maxlength="8" placeholder="••••"
+                                style="max-width:140px;">
+                            <button class="sched-refresh-btn" onclick="staffDoLogin()">Đăng nhập</button>
+                        </div>
+                        <div class="sched-status" id="staffLoginMsg">Chọn tên và nhập PIN (mặc định 1234).</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- signed-in workspace -->
+            <div id="staffWorkspace" style="display:none;">
+
+                <div class="duty-card" id="dutyCard"></div>
+
+                <!-- live stopwatch -->
+                <div class="efb-card open">
+                    <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                        <span>⏱️ Bấm giờ ca bay hướng dẫn</span>
+                        <span class="collapsible-arrow" style="color: #ffb300;">▼</span>
+                    </div>
+                    <div class="efb-card-body">
+                        <div class="ops-bar">
+                            <input type="text" class="metar-search ops-input" id="sessGuest"
+                                placeholder="Tên khách / chuyến bay — VD: Khách VIP · HAN-SGN A320">
+                        </div>
+                        <div class="stopwatch" id="stopwatch">00:00:00</div>
+                        <div class="stopwatch-sub" id="stopwatchSub">Sẵn sàng đón khách</div>
+                        <div class="ops-actions" style="justify-content:center;">
+                            <button class="sched-refresh-btn" id="sessBtn" onclick="sessToggle()">▶️ Bắt đầu ca bay</button>
+                        </div>
+                        <div class="efb-note">↳ Đơn giá 50.000 ₫ / giờ bay có khách. Lương =
+                            (tổng phút ÷ 60) × 50.000 ₫, làm tròn tới đồng.</div>
+                    </div>
+                </div>
+
+                <!-- manual entry -->
+                <div class="efb-card">
+                    <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                        <span>✍️ Nhập tay ca bay (bổ sung sau)</span>
+                        <span class="collapsible-arrow" style="color: #4da6ff;">▼</span>
+                    </div>
+                    <div class="efb-card-body">
+                        <div class="wb-inputs">
+                            <div class="wb-field"><label>Ngày</label>
+                                <input type="date" id="manDate"></div>
+                            <div class="wb-field"><label>Bắt đầu</label>
+                                <input type="time" id="manStart" value="09:00"></div>
+                            <div class="wb-field"><label>Kết thúc</label>
+                                <input type="time" id="manEnd" value="10:00"></div>
+                            <div class="wb-field" style="grid-column:span 2;"><label>Khách / chuyến bay</label>
+                                <input type="text" id="manGuest" placeholder="Tên khách"></div>
+                        </div>
+                        <div class="ops-actions">
+                            <button class="metar-ext-link" onclick="manAdd()">➕ THÊM VÀO LỊCH SỬ</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- weekend roster -->
+                <div class="efb-card open">
+                    <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                        <span>📅 Đăng ký ca — Thứ 7 &amp; Chủ Nhật</span>
+                        <span class="collapsible-arrow" style="color: #00d666;">▼</span>
+                    </div>
+                    <div class="efb-card-body">
+                        <div class="ops-bar">
+                            <label class="ops-lbl">Tuần</label>
+                            <input type="date" id="rosterWeek" onchange="rosterRender()">
+                            <span class="sched-status" id="rosterRange" style="flex:1;"></span>
+                        </div>
+                        <div class="roster-matrix" id="rosterMatrix"></div>
+                        <div class="efb-note">↳ Quán mở 09:00–21:00. Ca Sáng 09:00–15:00 ·
+                            Ca Chiều/Tối 15:00–21:00 · Cả ngày 09:00–21:00. Bấm ô để đăng ký hoặc
+                            huỷ ca của bạn; ca linh hoạt nhập giờ tuỳ ý.</div>
+                    </div>
+                </div>
+
+                <!-- payroll -->
+                <div class="efb-card open">
+                    <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
+                        <span>💰 Bảng lương &amp; thống kê</span>
+                        <span class="collapsible-arrow" style="color: #ffb300;">▼</span>
+                    </div>
+                    <div class="efb-card-body">
+                        <div class="ops-tiles" id="payTiles"></div>
+                        <div class="navlog-wrap" style="margin-top:12px;">
+                            <table class="navlog" id="payTable"></table>
+                        </div>
+                        <div class="ops-actions">
+                            <button class="metar-ext-link" onclick="payExportCsv()">📥 XUẤT BÁO CÁO CSV</button>
+                            <button class="metar-ext-link" onclick="payClearMine()">🗑 XOÁ LỊCH SỬ CỦA TÔI</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1253,6 +1426,8 @@
             try { localStorage.setItem('fd-page', id); } catch (e) { }
             if (id === 'storm-watch') stormInit();
             if (id === 'vn-radar') { radarInit(); stormInit(); }
+            if (id === 'navigraph-charts') ngInit();
+            if (id === 'staff-roster') staffBoot();
         }
 
         // Heavy world imagery + the Windy iframe load only on first open
@@ -1749,7 +1924,8 @@
                         route: r.from + ' SID ' + r.route + ' STAR ' + r.to,
                         alt: null, flText: r.fl, type: null, dist: r.nm,
                         pax: null, cargo: null, zfw: null, tow: null,
-                        fuel: {}, navlog: [], ete: null, source: 'Route library'
+                        fuel: {}, navlog: [], ete: null, source: 'Route library',
+                        flightNo: null, ci: null, wind: null, payloadKg: null
                     };
                     ofpRender();
                     const st = document.getElementById('sbStatus');
@@ -1813,6 +1989,10 @@
                 tow: kg(w.est_tow, u),
                 ete: num((d.times || {}).est_time_enroute),
                 units: u,
+                flightNo: (d.general.icao_airline || '') + (d.general.flight_number || ''),
+                ci: num(d.general.costindex),
+                wind: num(d.general.avg_wind_comp),
+                payloadKg: kg(w.payload, u),
                 fuel: {
                     // NB: SimBrief calls trip fuel "enroute_burn"
                     trip: kg(f.enroute_burn, u), cont: kg(f.contingency, u),
@@ -1824,7 +2004,9 @@
                     ident: x.ident, via: x.via_airway, dist: num(x.distance),
                     trk: num(x.track_true), alt: num(x.altitude_feet),
                     lat: num(x.pos_lat), lon: num(x.pos_long), stage: x.stage,
-                    name: x.name
+                    name: x.name, wdir: num(x.wind_dir), wspd: num(x.wind_spd),
+                    oat: num(x.oat), tas: num(x.true_airspeed),
+                    gs: num(x.groundspeed), fuelRem: kg(x.fuel_plan_onboard, u)
                 })),
                 source: 'SimBrief'
             };
@@ -1886,15 +2068,17 @@
                 opsTile('Extra', fmtKg(f.extra), '');
 
             navlogRender();
+            lidoRender();
             routeProfileDraw();
         }
 
+        // LIDO navlog: WPT · AWY · FL · W/T · TAS · GS · leg · remaining · fuel
         function navlogRender() {
             const t = document.getElementById('navlogTable');
             t.innerHTML = '';
             const rows = (ofp && ofp.navlog) || [];
             const head = document.createElement('tr');
-            ['WAYPOINT', 'AIRWAY', 'DIST', 'TRK°T', 'ALT'].forEach(h => {
+            ['WPT', 'AWY', 'FL', 'WIND/T', 'TAS', 'GS', 'LEG', 'REM', 'FUEL'].forEach(h => {
                 const th = document.createElement('th');
                 th.textContent = h;
                 head.appendChild(th);
@@ -1903,20 +2087,34 @@
             if (!rows.length) {
                 const tr = document.createElement('tr');
                 const td = document.createElement('td');
-                td.colSpan = 5;
+                td.colSpan = 9;
                 td.className = 'navlog-empty';
                 td.textContent = 'Pull a SimBrief OFP to populate the navigation log.';
                 tr.appendChild(td);
                 t.appendChild(tr);
                 return;
             }
+            const total = rows.reduce((s, r) => s + (r.dist || 0), 0);
+            let flown = 0;
             rows.forEach(r => {
+                flown += (r.dist || 0);
                 const tr = document.createElement('tr');
                 if (r.stage) tr.className = 'stage-' + String(r.stage).toLowerCase();
+                const wt = (r.wdir !== null && r.wspd !== null)
+                    ? String(Math.round(r.wdir)).padStart(3, '0') + '/' +
+                      String(Math.round(r.wspd)).padStart(2, '0') +
+                      (r.oat !== null ? ' ' + (r.oat > 0 ? 'P' : 'M') +
+                        String(Math.abs(Math.round(r.oat))).padStart(2, '0') : '')
+                    : '—';
                 [r.ident || '—', r.via || 'DCT',
-                 r.dist !== null ? r.dist + ' NM' : '—',
-                 r.trk !== null ? String(Math.round(r.trk)).padStart(3, '0') + '°' : '—',
-                 r.alt !== null ? (r.alt >= 10000 ? 'FL' + Math.round(r.alt / 100) : r.alt + ' ft') : '—'
+                 r.alt !== null ? (r.alt >= 10000 ? 'F' + String(Math.round(r.alt / 100)).padStart(3, '0')
+                                                  : String(r.alt)) : '—',
+                 wt,
+                 r.tas !== null ? String(r.tas) : '—',
+                 r.gs !== null ? String(r.gs) : '—',
+                 r.dist !== null ? String(r.dist) : '—',
+                 String(Math.max(0, Math.round(total - flown))),
+                 r.fuelRem !== null ? r.fuelRem.toLocaleString() : '—'
                 ].forEach((v, i) => {
                     const td = document.createElement('td');
                     td.textContent = v;
@@ -1925,6 +2123,574 @@
                 });
                 t.appendChild(tr);
             });
+        }
+
+        /* ---------------- LIDO OFP sheet ---------------- */
+        const vnd = n => (n === null || n === undefined || !isFinite(n))
+            ? '—' : Math.round(n).toLocaleString('vi-VN') + ' ₫';
+
+        function lidoRender() {
+            const box = document.getElementById('lidoSheet');
+            if (!box) return;
+            box.innerHTML = '';
+            if (!ofp) {
+                const n = document.createElement('div');
+                n.className = 'efb-note';
+                n.textContent = '↳ Pull a SimBrief OFP to build the LIDO flight plan.';
+                box.appendChild(n);
+                return;
+            }
+            const ac = FLEET[document.getElementById('wbType').value] || FLEET.A320;
+            const f = ofp.fuel || {};
+            const kgv = v => (v === null || v === undefined) ? '—' : v.toLocaleString();
+            const hhmm = s => s === null ? '—' :
+                String(Math.floor(s / 3600)).padStart(2, '0') + ':' +
+                String(Math.round((s % 3600) / 60)).padStart(2, '0');
+
+            // LIDO shows contingency as a percentage of trip fuel
+            const contPct = (f.trip && f.cont) ? (f.cont / f.trip * 100) : null;
+            const zfw = ofp.zfw, tow = ofp.tow;
+            const ldw = (tow !== null && f.trip !== null) ? tow - f.trip : null;
+            const under = (v, lim) => (v === null || v === undefined) ? null : lim - v;
+
+            const sect = (title, rows, cls) => {
+                const s = document.createElement('div');
+                s.className = 'lido-sect' + (cls ? ' ' + cls : '');
+                const h = document.createElement('div');
+                h.className = 'lido-sect-h';
+                h.textContent = title;
+                s.appendChild(h);
+                rows.forEach(r => {
+                    if (!r) return;
+                    const line = document.createElement('div');
+                    line.className = 'lido-row' + (r[2] ? ' ' + r[2] : '');
+                    const l = document.createElement('span');
+                    l.textContent = r[0];
+                    const v = document.createElement('span');
+                    v.textContent = r[1];
+                    line.appendChild(l);
+                    line.appendChild(v);
+                    s.appendChild(line);
+                });
+                box.appendChild(s);
+            };
+
+            const hdr = document.createElement('div');
+            hdr.className = 'lido-head';
+            hdr.textContent = 'TFD  ' + (ofp.flightNo || '----') + '   ' +
+                ofp.origin + ' ' + ofp.dest + (ofp.altn ? ' ' + ofp.altn : '') +
+                '   ' + new Date().toISOString().slice(0, 10);
+            box.appendChild(hdr);
+
+            sect('FLIGHT', [
+                ['AIRCRAFT', (ofp.type || ac.name) + (ofp.reg ? ' / ' + ofp.reg : '')],
+                ['COST INDEX', ofp.ci !== null && ofp.ci !== undefined ? 'CI ' + ofp.ci : '—'],
+                ['CRUISE', ofp.alt ? 'FL' + Math.round(ofp.alt / 100) : (ofp.flText || '—')],
+                ['ROUTE DIST', (ofp.dist !== null ? ofp.dist : '—') + ' NM'],
+                ['ETE', hhmm(ofp.ete)],
+                ['AVG WIND', ofp.wind !== null && ofp.wind !== undefined
+                    ? (ofp.wind > 0 ? 'P' : 'M') + String(Math.abs(ofp.wind)).padStart(3, '0') : '—']
+            ]);
+
+            sect('FUEL (KG)', [
+                ['TAXI', kgv(f.taxi)],
+                ['TRIP', kgv(f.trip)],
+                ['CONT' + (contPct !== null ? ' ' + contPct.toFixed(0) + '%' : ''), kgv(f.cont)],
+                ['ALTN' + (ofp.altn ? ' ' + ofp.altn : ''), kgv(f.altn)],
+                ['FINRES 30MIN', kgv(f.reserve)],
+                ['EXTRA', kgv(f.extra)],
+                ['MIN T/OFF FUEL', kgv(f.tof), 'lido-total'],
+                ['BLOCK / RAMP', kgv(f.block), 'lido-total']
+            ]);
+
+            const cg = lidoCg(ac);
+            sect('WEIGHTS &amp; BALANCE (KG)'.replace('&amp;', '&'), [
+                ['DOW', kgv(ac.dow)],
+                ['PAYLOAD', kgv(ofp.payloadKg)],
+                ['EZFW / MZFW', kgv(zfw) + ' / ' + kgv(ac.mzfw),
+                    zfw !== null && zfw > ac.mzfw ? 'lido-over' : ''],
+                ['ETOW / MTOW', kgv(tow) + ' / ' + kgv(ac.mtow),
+                    tow !== null && tow > ac.mtow ? 'lido-over' : ''],
+                ['ELDW / MLDW', kgv(ldw) + ' / ' + kgv(ac.mlw),
+                    ldw !== null && ldw > ac.mlw ? 'lido-over' : ''],
+                ['UNDERLOAD', (() => {
+                    const u = [under(zfw, ac.mzfw), under(tow, ac.mtow), under(ldw, ac.mlw)]
+                        .filter(x => x !== null);
+                    return u.length ? kgv(Math.min.apply(null, u)) : '—';
+                })(), 'lido-total'],
+                ['T/O CG', cg ? cg.cg.toFixed(1) + '% MAC' : '—'],
+                ['THS PITCH TRIM', cg
+                    ? Math.abs(cg.ths).toFixed(1) + ' ' + (cg.ths >= 0 ? 'UP' : 'DN') : '—', 'lido-total']
+            ]);
+        }
+
+        // CG/THS for the LIDO block, using the OFP payload when we have it
+        function lidoCg(ac) {
+            if (!ofp || ofp.payloadKg === null || ofp.payloadKg === undefined) return null;
+            const fuel = Math.max(0, (ofp.fuel.block || 0) - (ofp.fuel.taxi || 0));
+            const cg = wbCgPercent(ac, ofp.payloadKg, fuel);
+            return { cg: cg, ths: (30.0 - cg) * ac.thsK };
+        }
+
+        /* ============================================================
+           NAVIGRAPH / LIDO CHART VIEWER
+           charts.navigraph.com does allow framing (verified), but a
+           cross-origin sign-in can be blocked by third-party cookie
+           rules — hence the "open in a tab" escape hatch.
+           ============================================================ */
+        const NG_AIRPORTS = [
+            ['VVTS', 'Tân Sơn Nhất'], ['VVNB', 'Nội Bài'], ['VVDN', 'Đà Nẵng'],
+            ['VVPQ', 'Phú Quốc'], ['VVCR', 'Cam Ranh']
+        ];
+        const NG_CATS = [
+            ['APT', '🛬 TAXI'], ['SID', '🛫 SID'], ['STAR', '🛩 STAR'], ['APP', '📉 APPR']
+        ];
+        let ngIcao = 'VVTS', ngCat = 'APT', ngInited = false;
+
+        function ngUrl() {
+            return 'https://charts.navigraph.com/airport/' + ngIcao + '/' + ngCat;
+        }
+
+        function ngInit() {
+            if (ngInited) return;
+            ngInited = true;
+            const ap = document.getElementById('ngAirports');
+            NG_AIRPORTS.forEach(a => {
+                const b = document.createElement('button');
+                b.className = 'route-chip' + (a[0] === ngIcao ? ' active' : '');
+                b.textContent = a[0] + ' · ' + a[1];
+                b.onclick = () => {
+                    ngIcao = a[0];
+                    document.querySelectorAll('#ngAirports .route-chip').forEach(x =>
+                        x.classList.toggle('active', x === b));
+                    ngLoad();
+                };
+                ap.appendChild(b);
+            });
+            const cb = document.getElementById('ngCats');
+            NG_CATS.forEach(c => {
+                const b = document.createElement('button');
+                b.className = 'storm-chip' + (c[0] === ngCat ? ' active' : '');
+                b.textContent = c[1];
+                b.onclick = () => {
+                    ngCat = c[0];
+                    document.querySelectorAll('#ngCats .storm-chip').forEach(x =>
+                        x.classList.toggle('active', x === b));
+                    ngLoad();
+                };
+                cb.appendChild(b);
+            });
+            ngLoad();
+        }
+
+        function ngLoad() {
+            document.getElementById('ngFrame').src = ngUrl();
+            const st = document.getElementById('ngStatus');
+            st.className = 'sched-status live';
+            st.textContent = '● ' + ngIcao + ' · ' +
+                (NG_CATS.find(c => c[0] === ngCat) || ['', ngCat])[1].replace(/^\S+\s/, '') +
+                ' — nếu hiện màn hình Sign In, hãy đăng nhập Navigraph.';
+        }
+
+        function ngOpenLogin() {
+            window.open('https://charts.navigraph.com/', '_blank', 'noopener');
+            const st = document.getElementById('ngStatus');
+            st.className = 'sched-status';
+            st.textContent = 'Đã mở trang đăng nhập Navigraph ở tab mới — đăng nhập xong quay lại và bấm một sân bay.';
+        }
+
+        function ngOpenTab() { window.open(ngUrl(), '_blank', 'noopener'); }
+
+        /* ============================================================
+           STAFF ROSTER, DUTY STOPWATCH & PAYROLL  (localStorage)
+           ============================================================ */
+        const STAFF = [
+            { user: 'duyanh', name: 'Duy Anh', emoji: '🧑‍✈️' },
+            { user: 'nhathuy', name: 'Nhật Huy', emoji: '👨‍✈️' }
+        ];
+        const WAGE_PER_HOUR = 50000;
+        const SHIFTS = {
+            morning: { label: '🌅 Ca Sáng', from: '09:00', to: '15:00', hours: 6 },
+            evening: { label: '🌆 Ca Chiều/Tối', from: '15:00', to: '21:00', hours: 6 },
+            full: { label: '🌟 Cả Ngày', from: '09:00', to: '21:00', hours: 12 }
+        };
+        const SK = 'fd-staff-v1';
+        let staffUser = null, sessTimer = null, sessStart = null;
+
+        function staffDb() {
+            try { return JSON.parse(localStorage.getItem(SK)) || {}; } catch (e) { return {}; }
+        }
+        function staffSave(db) {
+            try { localStorage.setItem(SK, JSON.stringify(db)); } catch (e) { }
+        }
+        function staffRec(user) {
+            const db = staffDb();
+            db[user] = db[user] || { pin: '1234', sessions: [], roster: {} };
+            return db;
+        }
+
+        // restore the last signed-in staff member on first open
+        function staffBoot() {
+            if (staffUser) return;
+            let who = null;
+            try { who = localStorage.getItem('fd-staff-who'); } catch (e) { }
+            if (who && STAFF.some(s => s.user === who)) {
+                staffUser = who;
+                staffShow();
+            }
+        }
+
+        function staffPickRender() {
+            const box = document.getElementById('staffPick');
+            box.innerHTML = '';
+            STAFF.forEach(s => {
+                const b = document.createElement('button');
+                b.className = 'staff-btn' + (staffSelected === s.user ? ' active' : '');
+                b.innerHTML = '<span class="staff-emoji">' + s.emoji + '</span>';
+                const n = document.createElement('span');
+                n.textContent = s.name;
+                b.appendChild(n);
+                b.onclick = () => { staffSelected = s.user; staffPickRender(); };
+                box.appendChild(b);
+            });
+        }
+        let staffSelected = 'duyanh';
+
+        function staffDoLogin() {
+            const msg = document.getElementById('staffLoginMsg');
+            const pin = (document.getElementById('staffPin').value || '').trim();
+            const db = staffRec(staffSelected);
+            if (pin !== (db[staffSelected].pin || '1234')) {
+                msg.className = 'sched-status mock';
+                msg.textContent = '⚠ Sai PIN. Thử lại (mặc định 1234).';
+                return;
+            }
+            staffSave(db);
+            staffUser = staffSelected;
+            try { localStorage.setItem('fd-staff-who', staffUser); } catch (e) { }
+            document.getElementById('staffPin').value = '';
+            staffShow();
+        }
+
+        function staffLogout() {
+            sessStop(true);
+            staffUser = null;
+            try { localStorage.removeItem('fd-staff-who'); } catch (e) { }
+            document.getElementById('staffLogin').style.display = '';
+            document.getElementById('staffWorkspace').style.display = 'none';
+        }
+
+        function staffShow() {
+            document.getElementById('staffLogin').style.display = 'none';
+            document.getElementById('staffWorkspace').style.display = '';
+            dutyCardRender();
+            rosterInit();
+            payRender();
+        }
+
+        function dutyCardRender() {
+            const me = STAFF.find(s => s.user === staffUser);
+            const box = document.getElementById('dutyCard');
+            box.innerHTML = '';
+            const av = document.createElement('div');
+            av.className = 'duty-avatar';
+            av.textContent = me.emoji;
+            const info = document.createElement('div');
+            info.style.flex = '1';
+            const nm = document.createElement('div');
+            nm.className = 'duty-name';
+            nm.textContent = me.name;
+            const stt = document.createElement('div');
+            stt.className = 'duty-state' + (sessStart ? ' flying' : '');
+            stt.textContent = sessStart ? '🛫 Đang trong buồng lái hướng dẫn'
+                                        : '✅ Sẵn sàng đón khách';
+            info.appendChild(nm);
+            info.appendChild(stt);
+            const out = document.createElement('button');
+            out.className = 'metar-ext-link';
+            out.textContent = 'ĐĂNG XUẤT';
+            out.onclick = staffLogout;
+            box.appendChild(av);
+            box.appendChild(info);
+            box.appendChild(out);
+        }
+
+        const two = n => String(n).padStart(2, '0');
+        // Local calendar date (YYYY-MM-DD). NEVER use toISOString() for this:
+        // it converts to UTC, so at UTC+7 every local time before 07:00 would
+        // be filed under the previous day.
+        const isoLocal = d => d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate());
+        function fmtHms(ms) {
+            const s = Math.floor(ms / 1000);
+            return two(Math.floor(s / 3600)) + ':' + two(Math.floor(s / 60) % 60) + ':' + two(s % 60);
+        }
+
+        function sessToggle() { sessStart ? sessStop() : sessGo(); }
+
+        function sessGo() {
+            sessStart = Date.now();
+            document.getElementById('sessBtn').textContent = '⏹️ Kết thúc & chốt giờ';
+            document.getElementById('stopwatch').classList.add('running');
+            document.getElementById('stopwatchSub').textContent =
+                'Bắt đầu lúc ' + new Date(sessStart).toLocaleTimeString('vi-VN');
+            sessTimer = setInterval(() => {
+                document.getElementById('stopwatch').textContent = fmtHms(Date.now() - sessStart);
+            }, 250);
+            dutyCardRender();
+        }
+
+        function sessStop(silent) {
+            if (!sessStart) return;
+            const end = Date.now(), start = sessStart;
+            clearInterval(sessTimer);
+            sessTimer = null;
+            sessStart = null;
+            document.getElementById('sessBtn').textContent = '▶️ Bắt đầu ca bay';
+            document.getElementById('stopwatch').classList.remove('running');
+            document.getElementById('stopwatch').textContent = '00:00:00';
+            if (!silent) {
+                const mins = Math.max(0, Math.round((end - start) / 60000));
+                const guest = (document.getElementById('sessGuest').value || '').trim() || 'Khách lẻ';
+                sessAdd({ date: isoLocal(new Date(start)),
+                          start: new Date(start).toTimeString().slice(0, 5),
+                          end: new Date(end).toTimeString().slice(0, 5),
+                          mins: mins, guest: guest, mode: 'live' });
+                document.getElementById('sessGuest').value = '';
+                document.getElementById('stopwatchSub').textContent =
+                    '✅ Đã chốt ' + mins + ' phút · ' + vnd(mins / 60 * WAGE_PER_HOUR);
+            } else {
+                document.getElementById('stopwatchSub').textContent = 'Sẵn sàng đón khách';
+            }
+            dutyCardRender();
+        }
+
+        function sessAdd(rec) {
+            const db = staffRec(staffUser);
+            db[staffUser].sessions.push(rec);
+            staffSave(db);
+            payRender();
+        }
+
+        function manAdd() {
+            const d = document.getElementById('manDate').value;
+            const s = document.getElementById('manStart').value;
+            const e = document.getElementById('manEnd').value;
+            const g = (document.getElementById('manGuest').value || '').trim() || 'Khách lẻ';
+            if (!d || !s || !e) return;
+            const mins = Math.round((new Date(d + 'T' + e) - new Date(d + 'T' + s)) / 60000);
+            if (!(mins > 0)) {
+                alert('Giờ kết thúc phải sau giờ bắt đầu.');
+                return;
+            }
+            sessAdd({ date: d, start: s, end: e, mins: mins, guest: g, mode: 'manual' });
+            document.getElementById('manGuest').value = '';
+        }
+
+        /* ---- weekend roster ---- */
+        function weekendOf(dateStr) {
+            const base = dateStr ? new Date(dateStr + 'T00:00') : new Date();
+            const d = new Date(base);
+            // Saturday of the current week (week starts Monday)
+            const dow = (d.getDay() + 6) % 7;           // Mon=0 … Sun=6
+            d.setDate(d.getDate() - dow + 5);
+            const sat = new Date(d);
+            const sun = new Date(d);
+            sun.setDate(sun.getDate() + 1);
+            return [isoLocal(sat), isoLocal(sun)];
+        }
+
+        function rosterInit() {
+            const w = document.getElementById('rosterWeek');
+            if (!w.value) w.value = isoLocal(new Date());
+            rosterRender();
+        }
+
+        function rosterRender() {
+            const [sat, sun] = weekendOf(document.getElementById('rosterWeek').value);
+            document.getElementById('rosterRange').textContent =
+                'Thứ 7 ' + sat + '  ·  Chủ Nhật ' + sun;
+            const db = staffDb();
+            const box = document.getElementById('rosterMatrix');
+            box.innerHTML = '';
+            [['Thứ 7', sat], ['Chủ Nhật', sun]].forEach(([label, day]) => {
+                const col = document.createElement('div');
+                col.className = 'roster-day';
+                const h = document.createElement('div');
+                h.className = 'roster-day-h';
+                h.textContent = label + ' · ' + day;
+                col.appendChild(h);
+                Object.keys(SHIFTS).forEach(key => {
+                    const sh = SHIFTS[key];
+                    const cell = document.createElement('button');
+                    const takenBy = STAFF.filter(s =>
+                        ((db[s.user] || {}).roster || {})[day + '|' + key]);
+                    const mine = takenBy.some(s => s.user === staffUser);
+                    cell.className = 'roster-cell sh-' + key + (mine ? ' mine' : '') +
+                        (takenBy.length && !mine ? ' taken' : '');
+                    const t = document.createElement('div');
+                    t.className = 'roster-cell-t';
+                    t.textContent = sh.label + '  ' + sh.from + '–' + sh.to;
+                    const who = document.createElement('div');
+                    who.className = 'roster-cell-w';
+                    who.textContent = takenBy.length
+                        ? takenBy.map(s => s.name).join(', ') : 'Trống — bấm để đăng ký';
+                    cell.appendChild(t);
+                    cell.appendChild(who);
+                    cell.onclick = () => {
+                        const d2 = staffRec(staffUser);
+                        const k = day + '|' + key;
+                        if (d2[staffUser].roster[k]) delete d2[staffUser].roster[k];
+                        else d2[staffUser].roster[k] = { from: sh.from, to: sh.to, hours: sh.hours };
+                        staffSave(d2);
+                        rosterRender();
+                        payRender();
+                    };
+                    col.appendChild(cell);
+                });
+                // flexible shift
+                const flex = document.createElement('div');
+                flex.className = 'roster-flex';
+                const f1 = document.createElement('input');
+                f1.type = 'time'; f1.value = '09:00';
+                const f2 = document.createElement('input');
+                f2.type = 'time'; f2.value = '13:00';
+                const add = document.createElement('button');
+                add.className = 'metar-ext-link';
+                add.textContent = '⏱️ CA LINH HOẠT';
+                add.onclick = () => {
+                    const d2 = staffRec(staffUser);
+                    const hrs = (new Date(day + 'T' + f2.value) - new Date(day + 'T' + f1.value)) / 3600000;
+                    if (!(hrs > 0)) { alert('Giờ kết thúc phải sau giờ bắt đầu.'); return; }
+                    d2[staffUser].roster[day + '|flex'] =
+                        { from: f1.value, to: f2.value, hours: hrs };
+                    staffSave(d2);
+                    rosterRender();
+                    payRender();
+                };
+                const cur = ((db[staffUser] || {}).roster || {})[day + '|flex'];
+                if (cur) {
+                    const tag = document.createElement('span');
+                    tag.className = 'roster-flex-tag';
+                    tag.textContent = cur.from + '–' + cur.to;
+                    tag.onclick = () => {
+                        const d2 = staffRec(staffUser);
+                        delete d2[staffUser].roster[day + '|flex'];
+                        staffSave(d2);
+                        rosterRender();
+                        payRender();
+                    };
+                    flex.appendChild(tag);
+                }
+                flex.appendChild(f1);
+                flex.appendChild(f2);
+                flex.appendChild(add);
+                col.appendChild(flex);
+                box.appendChild(col);
+            });
+        }
+
+        /* ---- payroll ---- */
+        function payRows(user) {
+            return (((staffDb())[user] || {}).sessions || []).slice()
+                .sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start));
+        }
+
+        function payRender() {
+            const db = staffDb();
+            const mine = payRows(staffUser);
+            const mins = mine.reduce((s, r) => s + r.mins, 0);
+            const shifts = Object.keys(((db[staffUser] || {}).roster) || {}).length;
+            document.getElementById('payTiles').innerHTML =
+                opsTile('Ca đã đăng ký', String(shifts), 'Thứ 7 / Chủ Nhật') +
+                opsTile('Giờ bay hướng dẫn', (mins / 60).toFixed(2) + ' h',
+                    mins + ' phút · ' + mine.length + ' ca bay') +
+                opsTile('Tổng lương', vnd(mins / 60 * WAGE_PER_HOUR),
+                    '50.000 ₫ / giờ') +
+                STAFF.filter(s => s.user !== staffUser).map(s => {
+                    const om = payRows(s.user).reduce((a, r) => a + r.mins, 0);
+                    return opsTile(s.name, (om / 60).toFixed(2) + ' h', vnd(om / 60 * WAGE_PER_HOUR));
+                }).join('');
+
+            const t = document.getElementById('payTable');
+            t.innerHTML = '';
+            const head = document.createElement('tr');
+            ['NGÀY', 'BẮT ĐẦU', 'KẾT THÚC', 'THỜI LƯỢNG', 'KHÁCH', 'THÀNH TIỀN', ''].forEach(h => {
+                const th = document.createElement('th');
+                th.textContent = h;
+                head.appendChild(th);
+            });
+            t.appendChild(head);
+            if (!mine.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 7;
+                td.className = 'navlog-empty';
+                td.textContent = 'Chưa có ca bay nào được ghi nhận.';
+                tr.appendChild(td);
+                t.appendChild(tr);
+                return;
+            }
+            mine.forEach((r, i) => {
+                const tr = document.createElement('tr');
+                [r.date, r.start, r.end,
+                 Math.floor(r.mins / 60) + 'h' + two(r.mins % 60),
+                 r.guest, vnd(r.mins / 60 * WAGE_PER_HOUR),
+                 r.mode === 'live' ? '⏱️' : '✍️'
+                ].forEach((v, j) => {
+                    const td = document.createElement('td');
+                    td.textContent = v;
+                    if (j === 0) td.className = 'navlog-id';
+                    tr.appendChild(td);
+                });
+                const del = tr.lastChild;
+                del.style.cursor = 'pointer';
+                del.title = 'Xoá dòng này';
+                del.onclick = () => {
+                    if (!confirm('Xoá ca bay ngày ' + r.date + ' (' + r.guest + ')?')) return;
+                    const d2 = staffRec(staffUser);
+                    const idx = d2[staffUser].sessions.findIndex(x =>
+                        x.date === r.date && x.start === r.start && x.guest === r.guest);
+                    if (idx >= 0) d2[staffUser].sessions.splice(idx, 1);
+                    staffSave(d2);
+                    payRender();
+                };
+                t.appendChild(tr);
+            });
+        }
+
+        function payExportCsv() {
+            const lines = [['Nhan vien', 'Ngay', 'Bat dau', 'Ket thuc', 'So phut',
+                            'So gio', 'Khach', 'Thanh tien (VND)', 'Nguon'].join(',')];
+            STAFF.forEach(s => {
+                payRows(s.user).slice().reverse().forEach(r => {
+                    lines.push([s.name, r.date, r.start, r.end, r.mins,
+                                (r.mins / 60).toFixed(2), '"' + String(r.guest).replace(/"/g, '""') + '"',
+                                Math.round(r.mins / 60 * WAGE_PER_HOUR),
+                                r.mode === 'live' ? 'Bam gio' : 'Nhap tay'].join(','));
+                });
+            });
+            STAFF.forEach(s => {
+                const m = payRows(s.user).reduce((a, r) => a + r.mins, 0);
+                lines.push(['TONG ' + s.name, '', '', '', m, (m / 60).toFixed(2), '',
+                            Math.round(m / 60 * WAGE_PER_HOUR), ''].join(','));
+            });
+            // BOM so Excel opens the Vietnamese text correctly
+            const blob = new Blob(['﻿' + lines.join('\r\n')],
+                { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'chamcong-flightdeck-' + isoLocal(new Date()) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+        }
+
+        function payClearMine() {
+            if (!confirm('Xoá TOÀN BỘ lịch sử ca bay của bạn? Không thể hoàn tác.')) return;
+            const db = staffRec(staffUser);
+            db[staffUser].sessions = [];
+            staffSave(db);
+            payRender();
         }
 
         // SkyVector refuses to be framed (X-Frame-Options: SAMEORIGIN),
@@ -2296,6 +3062,11 @@
                 if (e.key === 'Enter') sbPull();
             });
             wbCompute();
+            staffPickRender();
+            document.getElementById('manDate').value = isoLocal(new Date());
+            document.getElementById('staffPin').addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') staffDoLogin();
+            });
 
             let page = null;
             try { page = localStorage.getItem('fd-page'); } catch (e) { }
