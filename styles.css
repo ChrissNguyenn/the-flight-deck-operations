@@ -5453,3 +5453,303 @@ body {
     .ng-wrap { aspect-ratio: 3 / 4; min-height: 420px; }
     .lido-row { font-size: 13px; }
 }
+
+/* ============================================================
+   TWO-LEVEL NAV · DEP/ARR WX · SCENIC · SMART DUTY HUD
+   ============================================================ */
+.fd-tabs .fd-tab {
+    font-size: 15px;
+    letter-spacing: 2px;
+    padding: 10px 26px;
+}
+
+.fd-subtabs {
+    display: flex;
+    gap: 8px;
+    padding: 8px 18px;
+    background-color: var(--airbus-bg);
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.fd-subtab {
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: var(--text-sub);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 7px 14px;
+    cursor: pointer;
+    flex: none;
+}
+
+.fd-subtab:hover { color: var(--text-main); }
+
+.fd-subtab.active {
+    color: #ffffff;
+    background: rgba(0, 102, 214, 0.28);
+    border-color: #4da6ff;
+}
+
+.route-group-h {
+    width: 100%;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    color: var(--text-sub);
+    margin: 8px 0 2px;
+}
+
+.route-chip.intl {
+    border-style: dashed;
+}
+
+.route-chip.intl.active {
+    background: linear-gradient(135deg, #5e35b1 0%, #0066d6 100%);
+    border-style: solid;
+}
+
+/* ---- DEP / ARR weather ---- */
+.da-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 14px;
+}
+
+.da-card {
+    background-color: var(--airbus-card);
+    border: 1px solid var(--border-color);
+    border-left: 6px solid var(--border-color);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+
+.da-card.cat-vfr  { border-left-color: #00d666; }
+.da-card.cat-mvfr { border-left-color: #4da6ff; }
+.da-card.cat-ifr  { border-left-color: #ff5252; }
+.da-card.cat-lifr { border-left-color: #c86bff; }
+
+.da-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.da-role {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    color: #fff;
+    border-radius: 7px;
+    padding: 3px 9px;
+}
+
+.da-dep  { background: #0066d6; }
+.da-arr  { background: #00838f; }
+.da-altn { background: #6d4c41; }
+
+.da-icao {
+    font-family: 'Courier New', monospace;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--qrh-blue-bright);
+}
+
+.da-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+    flex: 1;
+}
+
+.da-card .metar-raw { margin-top: 8px; border-radius: 8px; }
+
+/* ---- scenic ---- */
+.scenic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.scenic-card {
+    display: flex;
+    gap: 14px;
+    background: linear-gradient(135deg, rgba(106, 27, 154, 0.18), rgba(0, 131, 143, 0.10));
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px 16px;
+}
+
+:root.light-mode .scenic-card {
+    background: linear-gradient(135deg, rgba(106, 27, 154, 0.08), rgba(0, 131, 143, 0.05));
+}
+
+.scenic-emoji {
+    font-size: 34px;
+    line-height: 1;
+    flex: none;
+}
+
+.scenic-name {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.scenic-when {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+    margin: 2px 0 8px;
+}
+
+.scenic-meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.scenic-tag {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-main);
+    background: rgba(0, 0, 0, 0.28);
+    border-radius: 8px;
+    padding: 3px 9px;
+}
+
+:root.light-mode .scenic-tag { background: rgba(0, 0, 0, 0.07); }
+
+/* ---- smart duty HUD ---- */
+.shift-pick {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.shift-btn {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-family: 'Poppins', sans-serif;
+    color: var(--text-main);
+    background: var(--airbus-card);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px;
+    cursor: pointer;
+}
+
+.shift-btn b { font-size: 15px; font-weight: 800; }
+.shift-btn span { font-size: 12px; color: var(--text-sub); font-weight: 600; }
+.shift-btn:hover { border-color: #4da6ff; }
+.shift-btn.flex { border-style: dashed; }
+
+.duty-shiftbar { margin-bottom: 10px; }
+
+.duty-shiftbar-h {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--text-sub);
+    margin-bottom: 5px;
+}
+
+.duty-prog {
+    height: 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+:root.light-mode .duty-prog { background: #e2e5e9; }
+
+.duty-prog-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00d666, #ffb300);
+    transition: width 0.6s linear;
+}
+
+.live-cash {
+    text-align: center;
+    font-family: 'Courier New', monospace;
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-sub);
+    margin-top: -2px;
+}
+
+.live-cash.running {
+    color: #00d666;
+    text-shadow: 0 0 14px rgba(0, 214, 102, 0.55);
+}
+
+.stopwatch.running {
+    color: #00d666;
+    border-color: #00d666;
+    text-shadow: 0 0 16px rgba(0, 214, 102, 0.8);
+    box-shadow: inset 0 0 26px rgba(0, 214, 102, 0.18),
+        0 0 22px rgba(0, 214, 102, 0.3);
+}
+
+.pay3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.pay3-card {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border: 1px solid var(--border-color);
+    border-top: 4px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px 14px;
+    background-color: var(--airbus-card);
+    text-align: center;
+}
+
+.pay3-card span {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    color: var(--text-sub);
+}
+
+.pay3-card b {
+    font-family: 'Courier New', monospace;
+    font-size: 21px;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.pay3-card i {
+    font-size: 11px;
+    font-style: normal;
+    color: var(--text-sub);
+}
+
+.pay3-card.guest { border-top-color: #00d666; }
+.pay3-card.allow { border-top-color: #ffb300; }
+.pay3-card.total { border-top-color: #4da6ff; }
+.pay3-card.total b { color: var(--qrh-blue-bright); }
+.pay3-card.idle  { border-top-color: #55606c; }
+
+@media (max-width: 640px) {
+    .fd-tabs .fd-tab { font-size: 13px; padding: 9px 16px; letter-spacing: 1px; }
+    .live-cash { font-size: 20px; }
+}

@@ -43,22 +43,9 @@
     </header>
 
     <!-- page tabs — QRH style -->
-    <nav class="fd-tabs">
-        <button class="fd-tab active" data-page="vn-weather"
-            onclick="fdShowPage('vn-weather', this)">🌦️ VN Weather</button>
-        <button class="fd-tab" data-page="dispatch"
-            onclick="fdShowPage('dispatch', this)">📋 Dispatch</button>
-        <button class="fd-tab" data-page="fuel-wb"
-            onclick="fdShowPage('fuel-wb', this)">⚖️ Fuel &amp; W&amp;B</button>
-        <button class="fd-tab" data-page="vn-radar"
-            onclick="fdShowPage('vn-radar', this)">📡 Radar &amp; Charts</button>
-        <button class="fd-tab" data-page="navigraph-charts"
-            onclick="fdShowPage('navigraph-charts', this)">📑 Navigraph / LIDO Charts</button>
-        <button class="fd-tab" data-page="staff-roster"
-            onclick="fdShowPage('staff-roster', this)">👥 Staff Roster &amp; Duty</button>
-        <button class="fd-tab" data-page="storm-watch"
-            onclick="fdShowPage('storm-watch', this)">🌀 Storm Watch</button>
-    </nav>
+    <!-- two-level navigation: 2 main tabs, sub-tabs per group -->
+    <nav class="fd-tabs" id="fdMainTabs"></nav>
+    <nav class="fd-subtabs" id="fdSubTabs"></nav>
 
     <div class="main-container">
         <div id="vn-weather" class="page-content active">
@@ -452,24 +439,57 @@
 
                 <div class="duty-card" id="dutyCard"></div>
 
-                <!-- live stopwatch -->
+                <!-- 4-hour duty clock -->
                 <div class="efb-card open">
                     <div class="efb-card-header" onclick="toggleCollapsible(this.parentElement)">
-                        <span>⏱️ Bấm giờ ca bay hướng dẫn</span>
+                        <span>⏱️ Smart Duty Clock — ca 4 tiếng</span>
                         <span class="collapsible-arrow" style="color: #ffb300;">▼</span>
                     </div>
                     <div class="efb-card-body">
-                        <div class="ops-bar">
-                            <input type="text" class="metar-search ops-input" id="sessGuest"
-                                placeholder="Tên khách / chuyến bay — VD: Khách VIP · HAN-SGN A320">
+                        <div class="shift-pick" id="shiftPick"></div>
+
+                        <div class="duty-shiftbar" id="dutyShiftBar" style="display:none;">
+                            <div class="duty-shiftbar-h">
+                                <span id="dutyShiftLabel">—</span>
+                                <span id="dutyShiftLeft">—</span>
+                            </div>
+                            <div class="duty-prog"><div class="duty-prog-fill" id="dutyProgFill"></div></div>
                         </div>
+
                         <div class="stopwatch" id="stopwatch">00:00:00</div>
-                        <div class="stopwatch-sub" id="stopwatchSub">Sẵn sàng đón khách</div>
+                        <div class="live-cash" id="liveCash">0 ₫</div>
+                        <div class="stopwatch-sub" id="stopwatchSub">Chưa check-in ca trực</div>
+
                         <div class="ops-actions" style="justify-content:center;">
-                            <button class="sched-refresh-btn" id="sessBtn" onclick="sessToggle()">▶️ Bắt đầu ca bay</button>
+                            <button class="sched-refresh-btn" id="sessBtn" onclick="sessToggle()"
+                                disabled>▶️ Bắt đầu khách vào bay</button>
+                            <button class="metar-ext-link" id="checkoutBtn" onclick="dutyCheckout()"
+                                style="display:none;">🏁 CHECK-OUT &amp; KẾT THÚC CA</button>
                         </div>
-                        <div class="efb-note">↳ Đơn giá 50.000 ₫ / giờ bay có khách. Lương =
-                            (tổng phút ÷ 60) × 50.000 ₫, làm tròn tới đồng.</div>
+
+                        <div class="pay3" id="pay3"></div>
+
+                        <div class="efb-note">↳ Bay có khách 50.000 ₫/giờ (833,33 ₫/phút) ·
+                            phụ cấp trực chờ 20.000 ₫/giờ (333,33 ₫/phút). Nếu bay có khách
+                            ≥ 3 tiếng trong ca 4 tiếng thì <b>không</b> tính phụ cấp chờ.</div>
+                    </div>
+                </div>
+
+                <!-- guest name popup -->
+                <div class="wx-detail" id="guestModal"
+                    onclick="if (event.target === this) this.classList.remove('show')">
+                    <div class="wx-sheet" style="max-width:520px;">
+                        <button class="wx-close" onclick="document.getElementById('guestModal').classList.remove('show')">✕</button>
+                        <div class="ops-sub" style="font-size:15px;font-weight:800;color:var(--text-main);margin-bottom:12px;">
+                            Khách vào buồng lái</div>
+                        <div class="wb-field">
+                            <label>Tên khách / chặng bay</label>
+                            <input type="text" id="sessGuest"
+                                placeholder="VD: Khách VIP · HAN-SGN A320">
+                        </div>
+                        <div class="ops-actions" style="margin-top:14px;">
+                            <button class="sched-refresh-btn" onclick="sessGoConfirmed()">▶️ BẮT ĐẦU ĐẾM GIỜ</button>
+                        </div>
                     </div>
                 </div>
 
@@ -533,6 +553,25 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- ============ DEP / ARR WEATHER ============ -->
+        <div id="dep-arr-wx" class="page-content">
+            <div class="tab-banner" style="background-color: #00838f; color: #ffffff;">
+                🌤️ Departure &amp; Arrival Weather</div>
+            <div class="sched-status" id="daStatus">
+                Chọn một route hoặc pull SimBrief OFP — thời tiết 2 đầu sân bay sẽ tự giải mã.</div>
+            <div class="da-grid" id="daGrid"></div>
+        </div>
+
+        <!-- ============ SCENIC ROUTE & LANDMARKS ============ -->
+        <div id="scenic" class="page-content">
+            <div class="tab-banner" style="background-color: #6a1b9a; color: #ffffff;">
+                🌄 Scenic Route &amp; Landmark Showcase</div>
+            <div class="sched-status" id="scenicStatus">
+                Chọn chặng bay để xem các điểm ngắm cảnh giới thiệu cho khách.</div>
+            <div class="route-chips" id="scenicChips"></div>
+            <div class="scenic-grid" id="scenicGrid"></div>
         </div>
 
         <!-- ================= FUEL &amp; WEIGHT / BALANCE ================= -->
@@ -928,6 +967,7 @@
 
             metarData = payload;
             metarRender();
+            if (typeof ofp !== 'undefined' && ofp && document.getElementById('daGrid')) depArrRender();
             if (src === 'mock') {
                 status.className = 'sched-status mock';
                 status.textContent = '◌ OFFLINE PREVIEW — mock weather (sources unreachable)';
@@ -1446,16 +1486,80 @@
         const STORM_POLL_MS = 300000;       // storm data re-sync every 5 min
         let stormData = null, stormInited = false;
 
-        function fdShowPage(id, btn) {
-            document.querySelectorAll('.page-content').forEach(p =>
-                p.classList.toggle('active', p.id === id));
-            document.querySelectorAll('.fd-tab').forEach(b =>
-                b.classList.toggle('active', b === btn));
+        /* ============================================================
+           TWO-LEVEL NAVIGATION
+           Top bar carries only WEATHER and DISPATCH; each group opens
+           its own sub-tab bar. Pages keep their own ids, so every
+           existing init hook still fires unchanged.
+           ============================================================ */
+        const FD_NAV = [
+            {
+                key: 'weather', label: '\ud83c\udf26\ufe0f WEATHER',
+                subs: [
+                    { id: 'vn-weather', label: '\ud83c\udf26\ufe0f METAR / TAF / D-ATIS' },
+                    { id: 'vn-radar', label: '\ud83d\udce1 Radar CMAX & Charts' },
+                    { id: 'storm-watch', label: '\ud83c\udf00 Storm & SIGMET' }
+                ]
+            },
+            {
+                key: 'dispatch', label: '\u2708\ufe0f DISPATCH',
+                subs: [
+                    { id: 'dispatch', label: '\ud83d\udccb 1. OFP & Flight Plan', also: ['fuel-wb'] },
+                    { id: 'navigraph-charts', label: '\ud83d\uddfa\ufe0f 2. Enroute & Airport Charts' },
+                    { id: 'dep-arr-wx', label: '\ud83c\udf24\ufe0f 3. DEP & ARR Weather' },
+                    { id: 'scenic', label: '\ud83c\udf04 4. Scenic Route' },
+                    { id: 'staff-roster', label: '\u23f1\ufe0f 5. Duty Clock & Payroll' }
+                ]
+            }
+        ];
+        let fdGroup = 'weather', fdPage = 'vn-weather';
+
+        function fdNavRender() {
+            const main = document.getElementById('fdMainTabs');
+            const sub = document.getElementById('fdSubTabs');
+            main.innerHTML = '';
+            sub.innerHTML = '';
+            FD_NAV.forEach(g => {
+                const b = document.createElement('button');
+                b.className = 'fd-tab' + (g.key === fdGroup ? ' active' : '');
+                b.textContent = g.label;
+                b.onclick = () => fdShowGroup(g.key);
+                main.appendChild(b);
+            });
+            const grp = FD_NAV.find(g => g.key === fdGroup);
+            grp.subs.forEach(s2 => {
+                const b = document.createElement('button');
+                b.className = 'fd-subtab' + (s2.id === fdPage ? ' active' : '');
+                b.textContent = s2.label;
+                b.onclick = () => fdShowPage(s2.id);
+                sub.appendChild(b);
+            });
+        }
+
+        function fdShowGroup(key) {
+            fdGroup = key;
+            const grp = FD_NAV.find(g => g.key === key);
+            // keep the current page if it belongs to this group
+            if (!grp.subs.some(s2 => s2.id === fdPage)) fdPage = grp.subs[0].id;
+            fdShowPage(fdPage);
+        }
+
+        function fdShowPage(id) {
+            const grp = FD_NAV.find(g => g.subs.some(s2 => s2.id === id));
+            if (grp) fdGroup = grp.key;
+            fdPage = id;
+            const entry = grp ? grp.subs.find(s2 => s2.id === id) : null;
+            const visible = [id].concat((entry && entry.also) || []);
+            document.querySelectorAll('.page-content').forEach(pg =>
+                pg.classList.toggle('active', visible.indexOf(pg.id) >= 0));
+            fdNavRender();
             try { localStorage.setItem('fd-page', id); } catch (e) { }
             if (id === 'storm-watch') stormInit();
             if (id === 'vn-radar') { radarInit(); stormInit(); }
             if (id === 'navigraph-charts') ngInit();
             if (id === 'staff-roster') staffBoot();
+            if (id === 'dep-arr-wx') depArrRender();
+            if (id === 'scenic') scenicInit();
         }
 
         // Heavy world imagery + the Windy iframe load only on first open
@@ -2064,6 +2168,26 @@
                      route: r.rnav, nm: r.dist, fl: r.fl, track: r.track };
         });
 
+        /* International / regional routings (Eurocontrol IFPS & VATSIM
+           validated strings). These carry no published leg breakdown here,
+           so they fill the plan header and the SkyVector link but leave the
+           navlog to a SimBrief pull. */
+        const INTL_ROUTES = [
+            { key: 'VVNB-VTBS', label: 'HAN \u2794 BKK', from: 'VVNB', to: 'VTBS',
+              rnav: 'NOB W1 VTE DCT KRT R468 BKK', dist: 540, fl: 'FL350 / FL370', track: '250\u00b0M' },
+            { key: 'VVTS-WSSS', label: 'SGN \u2794 SIN', from: 'VVTS', to: 'WSSS',
+              rnav: 'TSN M753 ENREP M753 NYLON', dist: 590, fl: 'FL360 / FL380', track: '190\u00b0M' },
+            { key: 'VVTS-RKSI', label: 'SGN \u2794 ICN', from: 'VVTS', to: 'RKSI',
+              rnav: 'PATMA Q2 BITIS M771 DUMOL A1 POTET', dist: 2270, fl: 'FL340 / FL360', track: '035\u00b0M' },
+            { key: 'RJTT-RJOO', label: 'HND \u2794 ITM', from: 'RJTT', to: 'RJOO',
+              rnav: 'LAXAS Y28 XAC Y23 HEC', dist: 280, fl: 'FL280 / FL300', track: '250\u00b0M' },
+            { key: 'EGLL-LFPG', label: 'LHR \u2794 CDG', from: 'EGLL', to: 'LFPG',
+              rnav: 'DVR L10 RTM UN872 KOVIL', dist: 215, fl: 'FL260 / FL280', track: '130\u00b0M' },
+            { key: 'KJFK-KLAX', label: 'JFK \u2794 LAX', from: 'KJFK', to: 'KLAX',
+              rnav: 'COATE Q436 GIPSY J60 DJB J34 BAE FOD J84 DVC J100 HEC',
+              dist: 2145, fl: 'FL350 / FL370', track: '270\u00b0M' }
+        ];
+
         let ofp = null;                 // normalised plan currently displayed
 
         const LB2KG = 0.45359237;
@@ -2118,6 +2242,39 @@
                     st.textContent = '● ' + r.label + ' — ' + preset.rnav + ' · ' +
                         preset.dist + ' NM · ' + preset.fl + ' · TRK ' + preset.track +
                         ' (AIP routing; pull a SimBrief OFP for fuel & winds)';
+                };
+                bar.appendChild(b);
+            });
+            // international block
+            const hdr = document.createElement('div');
+            hdr.className = 'route-group-h';
+            hdr.textContent = 'QU\u1ed0C T\u1ebe / REGIONAL';
+            bar.appendChild(hdr);
+            INTL_ROUTES.forEach(r => {
+                const b = document.createElement('button');
+                b.className = 'route-chip intl';
+                b.textContent = r.label;
+                b.title = r.from + ' \u2192 ' + r.to + ' \u00b7 ' + r.rnav;
+                b.onclick = function () {
+                    document.querySelectorAll('.route-chip').forEach(x =>
+                        x.classList.toggle('active', x === b));
+                    const flNum = parseInt(String(r.fl).replace(/\D+/, ''), 10);
+                    ofp = {
+                        origin: r.from, dest: r.to, altn: null,
+                        route: r.from + ' ' + r.rnav + ' ' + r.to,
+                        alt: isFinite(flNum) ? flNum * 100 : null,
+                        flText: r.fl, type: null, dist: r.dist, track: r.track,
+                        pax: null, cargo: null, zfw: null, tow: null,
+                        fuel: {}, ete: null, source: 'International route library',
+                        flightNo: null, ci: null, wind: null, payloadKg: null,
+                        navlog: []
+                    };
+                    ofpRender();
+                    const st = document.getElementById('sbStatus');
+                    st.className = 'sched-status live';
+                    st.textContent = '\u25cf ' + r.label + ' \u2014 ' + r.rnav + ' \u00b7 ' +
+                        r.dist + ' NM \u00b7 ' + r.fl +
+                        ' (IFPS/VATSIM string; pull a SimBrief OFP for the navlog)';
                 };
                 bar.appendChild(b);
             });
@@ -2255,6 +2412,7 @@
 
             navlogRender();
             lidoRender();
+            if (document.getElementById('daGrid')) depArrRender();
             routeProfileDraw();
         }
 
@@ -2490,18 +2648,262 @@
         function ngOpenTab() { window.open(ngUrl(), '_blank', 'noopener'); }
 
         /* ============================================================
+           DEP / ARR WEATHER — decoded for both ends of the active plan
+           ============================================================ */
+        function daStation(icao) {
+            if (!metarData || !icao) return null;
+            return metarData.stations.find(s => s.icao === icao) || null;
+        }
+
+        function depArrRender() {
+            const grid = document.getElementById('daGrid');
+            const st = document.getElementById('daStatus');
+            grid.innerHTML = '';
+            if (!ofp) {
+                st.className = 'sched-status mock';
+                st.textContent = '\u25cc Ch\u01b0a c\u00f3 route \u2014 ch\u1ecdn m\u1ed9t ch\u1eb7ng \u1edf tab OFP tr\u01b0\u1edbc.';
+                return;
+            }
+            const pairs = [['DEP', ofp.origin], ['ARR', ofp.dest]];
+            if (ofp.altn) pairs.push(['ALTN', ofp.altn]);
+            let found = 0;
+            pairs.forEach(([role, icao]) => {
+                const s = daStation(icao);
+                if (s) found++;
+                const card = document.createElement('div');
+                card.className = 'da-card' + (s ? ' cat-' + String(s.fltcat || 'unk').toLowerCase() : '');
+
+                const head = document.createElement('div');
+                head.className = 'da-head';
+                const tag = document.createElement('span');
+                tag.className = 'da-role da-' + role.toLowerCase();
+                tag.textContent = role;
+                const id = document.createElement('span');
+                id.className = 'da-icao';
+                id.textContent = icao || '\u2014';
+                const nm = document.createElement('span');
+                nm.className = 'da-name';
+                nm.textContent = s ? (s.name || '') : 'kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u tr\u1ea1m';
+                head.appendChild(tag);
+                head.appendChild(id);
+                head.appendChild(nm);
+                if (s) {
+                    const cat = document.createElement('span');
+                    cat.className = 'metar-cat cat-' + String(s.fltcat || 'unk').toLowerCase();
+                    cat.textContent = String(s.fltcat || 'UNK').toUpperCase();
+                    head.appendChild(cat);
+                }
+                card.appendChild(head);
+
+                if (!s) {
+                    const n = document.createElement('div');
+                    n.className = 'efb-note';
+                    n.textContent = '\u21b3 Kh\u00f4ng c\u00f3 METAR cho ' + icao +
+                        ' trong feed hi\u1ec7n t\u1ea1i (s\u00e2n bay ngo\u00e0i Vi\u1ec7t Nam ho\u1eb7c ch\u01b0a b\u00e1o c\u00e1o).';
+                    card.appendChild(n);
+                    grid.appendChild(card);
+                    return;
+                }
+
+                const tiles = document.createElement('div');
+                tiles.className = 'ops-tiles';
+                const tdp = (s.temp !== null && s.temp !== undefined ? s.temp + '\u00b0' : '\u2014') +
+                    ' / ' + (s.dewp !== null && s.dewp !== undefined ? s.dewp + '\u00b0' : '\u2014');
+                tiles.innerHTML =
+                    opsTile('Gi\u00f3', s.wind || '\u2014', '') +
+                    opsTile('T\u1ea7m nh\u00ecn', s.vis || '\u2014', '') +
+                    opsTile('M\u00e2y', s.clouds || '\u2014', '') +
+                    opsTile('T / DP', tdp, '') +
+                    opsTile('QNH', s.qnh || '\u2014', '');
+                card.appendChild(tiles);
+
+                const add = (label, text, cls) => {
+                    if (!text) return;
+                    const b = document.createElement('div');
+                    b.className = 'metar-raw' + (cls ? ' ' + cls : '');
+                    const tg = document.createElement('span');
+                    tg.className = 'wx-rep-tag';
+                    tg.textContent = label;
+                    b.appendChild(tg);
+                    b.appendChild(document.createTextNode(' ' + text));
+                    card.appendChild(b);
+                };
+                add('SPECI', s.speci, 'metar-speci');
+                add('METAR', s.metar || s.raw, '');
+                add('TAF', s.taf, '');
+                (s.atis || []).forEach(a => add('ATIS ' + a.kind, a.text, 'wx-rep-atis'));
+
+                const link = document.createElement('div');
+                link.className = 'ops-actions';
+                const dec = document.createElement('button');
+                dec.className = 'metar-ext-link';
+                dec.textContent = '\u2630 FULL DECODED REPORT \u25b8';
+                dec.onclick = () => wxOpenDetail(s.icao);
+                link.appendChild(dec);
+                card.appendChild(link);
+                grid.appendChild(card);
+            });
+            st.className = 'sched-status ' + (found ? 'live' : 'mock');
+            st.textContent = (found ? '\u25cf ' : '\u26a0 ') + ofp.origin + ' \u2192 ' + ofp.dest +
+                (ofp.altn ? ' (ALTN ' + ofp.altn + ')' : '') + ' \u00b7 ' + found + '/' +
+                pairs.length + ' s\u00e2n bay c\u00f3 d\u1eef li\u1ec7u th\u1eddi ti\u1ebft';
+        }
+
+        /* ============================================================
+           SCENIC ROUTE & LANDMARK SHOWCASE
+           ============================================================ */
+        const SCENIC = {
+            'VVNB-VVTS': [
+                { n: 'S\u00f4ng H\u1ed3ng & c\u1ea7u Nh\u1eadt T\u00e2n', s: 'Ngay sau c\u1ea5t c\u00e1nh VVNB', side: 'TR\u00c1I', alt: '2.000\u20135.000 ft', best: 'S\u00e1ng s\u1edbm', e: '\ud83c\udf09' },
+                { n: '\u0110\u1ec9nh Fansipan & d\u00e3y Ho\u00e0ng Li\u00ean S\u01a1n', s: 'Xa v\u1ec1 ph\u00eda t\u00e2y b\u1eafc khi leo cao', side: 'PH\u1ea2I', alt: 'FL200+', best: 'Tr\u1eddi quang m\u00f9a kh\u00f4', e: '\ud83c\udfd4\ufe0f' },
+                { n: 'D\u1ea3i b\u1edd bi\u1ec3n Mi\u1ec1n Trung', s: 'D\u1ecdc Q1 t\u1eeb VIBAS \u0111\u1ebfn DAN', side: 'TR\u00c1I', alt: 'FL330', best: 'Gi\u1eefa tr\u01b0a', e: '\ud83c\udfd6\ufe0f' },
+                { n: '\u0110\u00e8o H\u1ea3i V\u00e2n & v\u1ecbnh L\u0103ng C\u00f4', s: 'Ph\u00eda b\u1eafc \u0110\u00e0 N\u1eb5ng', side: 'TR\u00c1I', alt: 'FL330', best: 'Tr\u01b0a', e: '\ud83c\udf04' },
+                { n: 'Cao nguy\u00ean Pleiku', s: 'Sau BUNBO tr\u00ean Q1', side: 'PH\u1ea2I', alt: 'FL330', best: 'Chi\u1ec1u', e: '\ud83c\udf3f' },
+                { n: 'Landmark 81 & s\u00f4ng S\u00e0i G\u00f2n', s: 'Ti\u1ebfp c\u1eadn VVTS', side: 'PH\u1ea2I', alt: '3.000\u20138.000 ft', best: 'Golden hour / \u0111\u00eam', e: '\ud83c\udfd9\ufe0f' }
+            ],
+            'VVTS-VVNB': [
+                { n: 'Landmark 81 & trung t\u00e2m S\u00e0i G\u00f2n', s: 'Ngay sau c\u1ea5t c\u00e1nh', side: 'TR\u00c1I', alt: '2.000\u20136.000 ft', best: '\u0110\u00eam \u2014 th\u00e0nh ph\u1ed1 l\u00ean \u0111\u00e8n', e: '\ud83c\udf03' },
+                { n: 'V\u1ecbnh Nha Trang \u2014 Cam Ranh', s: 'D\u1ecdc b\u1edd bi\u1ec3n tr\u00ean Q2', side: 'PH\u1ea2I', alt: 'FL340', best: 'S\u00e1ng', e: '\ud83c\udfdd\ufe0f' },
+                { n: 'B\u00e1n \u0111\u1ea3o S\u01a1n Tr\u00e0 & c\u1ea7u R\u1ed3ng', s: 'Ngang DAN', side: 'PH\u1ea2I', alt: 'FL340', best: 'Tr\u01b0a', e: '\ud83d\udc09' },
+                { n: 'C\u1ed1 \u0111\u00f4 Hu\u1ebf & ph\u00e1 Tam Giang', s: 'B\u1eafc \u0110\u00e0 N\u1eb5ng', side: 'TR\u00c1I', alt: 'FL340', best: 'Chi\u1ec1u', e: '\ud83c\udfef' },
+                { n: 'Tr\u00e0ng An \u2014 Ninh B\u00ecnh', s: 'Tr\u01b0\u1edbc khi v\u00e0o NOB', side: 'TR\u00c1I', alt: 'FL200 tr\u1edf xu\u1ed1ng', best: 'S\u00e1ng s\u1edbm c\u00f3 s\u01b0\u01a1ng', e: '\u26f0\ufe0f' }
+            ],
+            'VVTS-VVPQ': [
+                { n: 'Ho\u00e0ng h\u00f4n tr\u00ean v\u1ecbnh Th\u00e1i Lan', s: 'To\u00e0n ch\u1eb7ng W17', side: 'PH\u1ea2I', alt: 'FL200', best: 'Golden hour \u2014 chuy\u1ebfn chi\u1ec1u', e: '\ud83c\udf05' },
+                { n: 'Qu\u1ea7n \u0111\u1ea3o An Th\u1edbi', s: 'Nam Ph\u00fa Qu\u1ed1c', side: 'TR\u00c1I', alt: '5.000\u201310.000 ft', best: 'Tr\u01b0a n\u01b0\u1edbc trong', e: '\ud83c\udfdd\ufe0f' },
+                { n: 'B\u00e3i Sao \u2014 ti\u1ebfp c\u1eadn s\u00e1t m\u1eb7t bi\u1ec3n', s: 'Ch\u1eb7ng cu\u1ed1i v\u00e0o VVPQ', side: 'C\u1ea2 HAI', alt: 'D\u01b0\u1edbi 3.000 ft', best: 'Tr\u01b0a \u2014 chi\u1ec1u', e: '\ud83c\udfd6\ufe0f' }
+            ],
+            'VVTS-VVDN': [
+                { n: 'V\u1ecbnh Cam Ranh & Nha Trang', s: 'Gi\u1eefa ch\u1eb7ng tr\u00ean Q2', side: 'PH\u1ea2I', alt: 'FL320', best: 'S\u00e1ng', e: '\ud83c\udfdd\ufe0f' },
+                { n: 'C\u1ea7u R\u1ed3ng & s\u00f4ng H\u00e0n', s: 'Ti\u1ebfp c\u1eadn VVDN', side: 'TR\u00c1I', alt: 'D\u01b0\u1edbi 5.000 ft', best: '\u0110\u00eam cu\u1ed1i tu\u1ea7n \u2014 r\u1ed3ng phun l\u1eeda', e: '\ud83d\udc09' },
+                { n: 'B\u00e0 N\u00e0 Hills & C\u1ea7u V\u00e0ng', s: 'T\u00e2y \u0110\u00e0 N\u1eb5ng', side: 'PH\u1ea2I', alt: '8.000\u201312.000 ft', best: 'S\u00e1ng \u00edt m\u00e2y', e: '\ud83d\udc90' }
+            ],
+            'VVNB-VVDN': [
+                { n: 'Tr\u00e0ng An \u2014 non n\u01b0\u1edbc Ninh B\u00ecnh', s: 'Sau NAH tr\u00ean Q1', side: 'PH\u1ea2I', alt: 'FL150\u2013FL250', best: 'S\u00e1ng c\u00f3 s\u01b0\u01a1ng', e: '\u26f0\ufe0f' },
+                { n: 'Phong Nha \u2014 K\u1ebb B\u00e0ng', s: 'Gi\u1eefa ch\u1eb7ng', side: 'PH\u1ea2I', alt: 'FL310', best: 'Tr\u01b0a', e: '\ud83d\udd73\ufe0f' },
+                { n: '\u0110\u00e8o H\u1ea3i V\u00e2n & S\u01a1n Tr\u00e0', s: 'Ti\u1ebfp c\u1eadn CAHEO', side: 'TR\u00c1I', alt: 'D\u01b0\u1edbi FL200', best: 'Chi\u1ec1u', e: '\ud83c\udf04' }
+            ],
+            'RJTT-RJOO': [
+                { n: 'N\u00fai Ph\u00fa S\u0129 tuy\u1ebft ph\u1ee7', s: 'Ngay sau c\u1ea5t c\u00e1nh Haneda', side: 'PH\u1ea2I', alt: 'FL280', best: 'M\u00f9a \u0111\u00f4ng, s\u00e1ng s\u1edbm', e: '\ud83d\uddfb' },
+                { n: 'V\u1ecbnh Ise & b\u00e1n \u0111\u1ea3o Kii', s: 'Gi\u1eefa ch\u1eb7ng', side: 'TR\u00c1I', alt: 'FL280', best: 'Tr\u01b0a', e: '\ud83c\udf0a' }
+            ],
+            'EGLL-LFPG': [
+                { n: 'V\u00e1ch \u0111\u00e1 tr\u1eafng Dover', s: 'Qua DVR', side: 'TR\u00c1I', alt: 'FL260', best: 'Tr\u1eddi quang', e: '\ud83e\udea8' },
+                { n: 'D\u00e3y Alps xa (n\u1ebfu quang)', s: 'Ph\u00eda \u0111\u00f4ng nam', side: 'TR\u00c1I', alt: 'FL260+', best: 'M\u00f9a \u0111\u00f4ng', e: '\ud83c\udfd4\ufe0f' }
+            ],
+            'VVTS-RKSI': [
+                { n: 'V\u1ecbnh Victoria \u2014 Hong Kong', s: 'Ngang HKG tr\u00ean M771', side: 'TR\u00c1I', alt: 'FL340', best: '\u0110\u00eam', e: '\ud83c\udf06' },
+                { n: '\u0110\u1ea3o Jeju & b\u1edd nam H\u00e0n Qu\u1ed1c', s: 'Tr\u01b0\u1edbc POTET', side: 'PH\u1ea2I', alt: 'FL340', best: 'S\u00e1ng', e: '\ud83c\udf0b' }
+            ]
+        };
+
+        let scenicKey = null, scenicInited = false;
+
+        function scenicInit() {
+            if (!scenicInited) {
+                scenicInited = true;
+                const bar = document.getElementById('scenicChips');
+                Object.keys(SCENIC).forEach(k => {
+                    const preset = ROUTE_PRESETS[k];
+                    const intl = INTL_ROUTES.find(r => r.key === k);
+                    const b = document.createElement('button');
+                    b.className = 'route-chip' + (intl ? ' intl' : '');
+                    b.textContent = (preset && preset.label) || (intl && intl.label) || k;
+                    b.onclick = () => {
+                        scenicKey = k;
+                        document.querySelectorAll('#scenicChips .route-chip').forEach(x =>
+                            x.classList.toggle('active', x === b));
+                        scenicRender();
+                    };
+                    bar.appendChild(b);
+                });
+            }
+            // follow the active plan when it has a showcase
+            if (ofp) {
+                const k = ofp.origin + '-' + ofp.dest;
+                if (SCENIC[k]) scenicKey = k;
+            }
+            if (!scenicKey) scenicKey = Object.keys(SCENIC)[0];
+            [...document.querySelectorAll('#scenicChips .route-chip')].forEach((b, i) =>
+                b.classList.toggle('active', Object.keys(SCENIC)[i] === scenicKey));
+            scenicRender();
+        }
+
+        function scenicRender() {
+            const grid = document.getElementById('scenicGrid');
+            const st = document.getElementById('scenicStatus');
+            grid.innerHTML = '';
+            const list = SCENIC[scenicKey] || [];
+            const preset = ROUTE_PRESETS[scenicKey];
+            const intl = INTL_ROUTES.find(r => r.key === scenicKey);
+            st.className = 'sched-status live';
+            st.textContent = '\u25cf ' + ((preset && preset.label) || (intl && intl.label) || scenicKey) +
+                ' \u2014 ' + list.length + ' \u0111i\u1ec3m ng\u1eafm c\u1ea3nh';
+            list.forEach(p2 => {
+                const c = document.createElement('div');
+                c.className = 'scenic-card';
+                const em = document.createElement('div');
+                em.className = 'scenic-emoji';
+                em.textContent = p2.e;
+                const body = document.createElement('div');
+                body.style.flex = '1';
+                const n = document.createElement('div');
+                n.className = 'scenic-name';
+                n.textContent = p2.n;
+                const w = document.createElement('div');
+                w.className = 'scenic-when';
+                w.textContent = p2.s;
+                const meta = document.createElement('div');
+                meta.className = 'scenic-meta';
+                [['\ud83e\ude9f C\u1eeda s\u1ed5', p2.side], ['\u2708\ufe0f \u0110\u1ed9 cao', p2.alt],
+                 ['\ud83d\udd52 Th\u1eddi \u0111i\u1ec3m \u0111\u1eb9p', p2.best]].forEach(([k2, v]) => {
+                    const s2 = document.createElement('span');
+                    s2.className = 'scenic-tag';
+                    s2.textContent = k2 + ': ' + v;
+                    meta.appendChild(s2);
+                });
+                body.appendChild(n);
+                body.appendChild(w);
+                body.appendChild(meta);
+                c.appendChild(em);
+                c.appendChild(body);
+                grid.appendChild(c);
+            });
+        }
+
+        /* ============================================================
            STAFF ROSTER, DUTY STOPWATCH & PAYROLL  (localStorage)
            ============================================================ */
         const STAFF = [
             { user: 'duyanh', name: 'Duy Anh', emoji: '🧑‍✈️' },
             { user: 'nhathuy', name: 'Nhật Huy', emoji: '👨‍✈️' }
         ];
-        const WAGE_PER_HOUR = 50000;
+        // Wage model. Per-minute rates are exact thirds of the hourly rate,
+        // so a session is paid to the minute (and ticks per second live).
+        const WAGE_PER_HOUR = 50000;          // guest flying
+        const ALLOWANCE_PER_HOUR = 20000;     // standby, no guest
+        const SHIFT_MINUTES = 240;            // every duty is exactly 4 h
+        const ALLOWANCE_CUTOFF_MIN = 180;     // >= 3 h flown -> no standby pay
         const SHIFTS = {
-            morning: { label: '🌅 Ca Sáng', from: '09:00', to: '15:00', hours: 6 },
-            evening: { label: '🌆 Ca Chiều/Tối', from: '15:00', to: '21:00', hours: 6 },
-            full: { label: '🌟 Cả Ngày', from: '09:00', to: '21:00', hours: 12 }
+            s1: { label: 'Ca 1', from: '09:00', to: '13:00', hours: 4 },
+            s2: { label: 'Ca 2', from: '13:00', to: '17:00', hours: 4 },
+            s3: { label: 'Ca 3', from: '17:00', to: '21:00', hours: 4 }
         };
+
+        /* Smart wage for one 4-hour duty.
+           guest pay  = guestMin / 60 * 50,000
+           idle       = max(0, 240 - guestMin)
+           allowance  = 0 when guestMin >= 180, else idle / 60 * 20,000 */
+        function shiftWage(guestMin, shiftMin) {
+            const total = shiftMin || SHIFT_MINUTES;
+            const guest = Math.max(0, guestMin);
+            const idle = Math.max(0, total - guest);
+            const guestPay = Math.round(guest / 60 * WAGE_PER_HOUR);
+            const allowance = guest >= ALLOWANCE_CUTOFF_MIN
+                ? 0 : Math.round(idle / 60 * ALLOWANCE_PER_HOUR);
+            return { guestMin: guest, idleMin: idle, guestPay: guestPay,
+                     allowance: allowance, total: guestPay + allowance };
+        }
         const SK = 'fd-staff-v1';
         let staffUser = null, sessTimer = null, sessStart = null;
 
@@ -2572,6 +2974,17 @@
             document.getElementById('staffLogin').style.display = 'none';
             document.getElementById('staffWorkspace').style.display = '';
             dutyCardRender();
+            try {
+                const raw = localStorage.getItem('fd-duty-shift');
+                if (raw) {
+                    const s = JSON.parse(raw);
+                    // an abandoned shift older than 12 h is not resumed
+                    if (Date.now() - s.startedAt < 12 * 3600000) dutyShift = s;
+                    else localStorage.removeItem('fd-duty-shift');
+                }
+            } catch (e) { }
+            shiftPickRender();
+            if (dutyShift && !dutyTimer) { dutyTick(); dutyTimer = setInterval(dutyTick, 1000); }
             rosterInit();
             payRender();
         }
@@ -2613,16 +3026,164 @@
             return two(Math.floor(s / 3600)) + ':' + two(Math.floor(s / 60) % 60) + ':' + two(s % 60);
         }
 
-        function sessToggle() { sessStart ? sessStop() : sessGo(); }
+        /* ---- duty shift check-in / check-out ---- */
+        let dutyShift = null;          // {key, date, from, to, startedAt}
+
+        function shiftPickRender() {
+            const box = document.getElementById('shiftPick');
+            if (!box) return;
+            box.innerHTML = '';
+            if (dutyShift) {
+                box.style.display = 'none';
+                document.getElementById('dutyShiftBar').style.display = '';
+                document.getElementById('checkoutBtn').style.display = '';
+                document.getElementById('sessBtn').disabled = false;
+                return;
+            }
+            box.style.display = '';
+            document.getElementById('dutyShiftBar').style.display = 'none';
+            document.getElementById('checkoutBtn').style.display = 'none';
+            document.getElementById('sessBtn').disabled = true;
+            Object.keys(SHIFTS).forEach(k => {
+                const sh = SHIFTS[k];
+                const b = document.createElement('button');
+                b.className = 'shift-btn';
+                b.innerHTML = '<b>' + sh.label + '</b><span>' + sh.from + ' \u2013 ' + sh.to + '</span>';
+                b.onclick = () => dutyCheckin(k);
+                box.appendChild(b);
+            });
+            const f = document.createElement('button');
+            f.className = 'shift-btn flex';
+            f.innerHTML = '<b>Ca t\u1ef1 do</b><span>4 ti\u1ebfng t\u1eeb b\u00e2y gi\u1edd</span>';
+            f.onclick = () => dutyCheckin('flex');
+            box.appendChild(f);
+        }
+
+        function dutyCheckin(key) {
+            const now = new Date();
+            const sh = SHIFTS[key];
+            dutyShift = {
+                key: key, date: isoLocal(now),
+                label: sh ? sh.label : 'Ca t\u1ef1 do',
+                from: sh ? sh.from : now.toTimeString().slice(0, 5),
+                to: sh ? sh.to : new Date(now.getTime() + SHIFT_MINUTES * 60000)
+                    .toTimeString().slice(0, 5),
+                startedAt: now.getTime(), sessions: []
+            };
+            try { localStorage.setItem('fd-duty-shift', JSON.stringify(dutyShift)); } catch (e) { }
+            shiftPickRender();
+            dutyTick();
+            if (!dutyTimer) dutyTimer = setInterval(dutyTick, 1000);
+            payRender();
+        }
+
+        let dutyTimer = null;
+
+        function dutyElapsedMin() {
+            if (!dutyShift) return 0;
+            return Math.min(SHIFT_MINUTES,
+                Math.floor((Date.now() - dutyShift.startedAt) / 60000));
+        }
+
+        function dutyGuestMin() {
+            if (!dutyShift) return 0;
+            const done = dutyShift.sessions.reduce((a, s) => a + s.mins, 0);
+            const live = sessStart ? (Date.now() - sessStart) / 60000 : 0;
+            return done + live;
+        }
+
+        function dutyTick() {
+            if (!dutyShift) return;
+            const el = dutyElapsedMin();
+            const pct = Math.min(100, el / SHIFT_MINUTES * 100);
+            document.getElementById('dutyProgFill').style.width = pct.toFixed(1) + '%';
+            document.getElementById('dutyShiftLabel').textContent =
+                dutyShift.label + '  ' + dutyShift.from + ' \u2013 ' + dutyShift.to;
+            const left = Math.max(0, SHIFT_MINUTES - el);
+            document.getElementById('dutyShiftLeft').textContent =
+                left > 0 ? ('c\u00f2n ' + Math.floor(left / 60) + 'h' + two(left % 60)) : 'H\u1ebeT CA';
+            if (sessStart) {
+                const ms = Date.now() - sessStart;
+                document.getElementById('stopwatch').textContent = fmtHms(ms);
+                document.getElementById('liveCash').textContent =
+                    vnd(ms / 3600000 * WAGE_PER_HOUR);
+            }
+            payRender();
+        }
+
+        function dutyCheckout() {
+            if (!dutyShift) return;
+            if (sessStart && !confirm('\u0110ang c\u00f3 kh\u00e1ch bay. K\u1ebft th\u00fac session v\u00e0 ch\u1ed1t ca?')) return;
+            if (sessStart) sessStop();
+            const guestMin = Math.round(dutyShift.sessions.reduce((a, s) => a + s.mins, 0));
+            const w = shiftWage(guestMin, SHIFT_MINUTES);
+            const db = staffRec(staffUser);
+            db[staffUser].shifts = db[staffUser].shifts || [];
+            db[staffUser].shifts.push({
+                date: dutyShift.date, label: dutyShift.label,
+                from: dutyShift.from, to: dutyShift.to,
+                guestMin: w.guestMin, idleMin: w.idleMin,
+                guestPay: w.guestPay, allowance: w.allowance, total: w.total,
+                sessions: dutyShift.sessions
+            });
+            staffSave(db);
+            dutyShift = null;
+            try { localStorage.removeItem('fd-duty-shift'); } catch (e) { }
+            clearInterval(dutyTimer); dutyTimer = null;
+            document.getElementById('dutyProgFill').style.width = '0%';
+            document.getElementById('liveCash').textContent = '0 \u20ab';
+            document.getElementById('stopwatchSub').textContent =
+                '\ud83c\udfc1 \u0110\u00e3 ch\u1ed1t ca \u00b7 bay ' + w.guestMin + ' ph\u00fat \u00b7 ' + vnd(w.total);
+            shiftPickRender();
+            payRender();
+            briefReceipt(w);
+        }
+
+        function briefReceipt(w) {
+            const me = STAFF.find(s => s.user === staffUser);
+            const L = [];
+            L.push('=========================================');
+            L.push('  THE FLIGHT DECK \u2014 BI\u00caN NH\u1eacN CH\u1ea4M C\u00d4NG');
+            L.push('=========================================');
+            L.push('Nh\u00e2n vi\u00ean : ' + me.name);
+            L.push('Ng\u00e0y      : ' + isoLocal(new Date()));
+            L.push('');
+            L.push('Bay c\u00f3 kh\u00e1ch : ' + w.guestMin + ' ph\u00fat  \u2192 ' + vnd(w.guestPay));
+            L.push('Tr\u1ef1c ch\u1edd    : ' + w.idleMin + ' ph\u00fat  \u2192 ' + vnd(w.allowance));
+            if (w.guestMin >= ALLOWANCE_CUTOFF_MIN) {
+                L.push('  (bay \u2265 3 ti\u1ebfng \u2014 kh\u00f4ng t\u00ednh ph\u1ee5 c\u1ea5p ch\u1edd)');
+            }
+            L.push('-----------------------------------------');
+            L.push('T\u1ed4NG THU NH\u1eacP : ' + vnd(w.total));
+            L.push('=========================================');
+            document.getElementById('briefBody').textContent = L.join('\n');
+            document.getElementById('briefSheet').classList.add('show');
+        }
+
+        function sessToggle() {
+            if (sessStart) { sessStop(); return; }
+            if (!dutyShift) { alert('H\u00e3y check-in ca tr\u1ef1c tr\u01b0\u1edbc.'); return; }
+            document.getElementById('guestModal').classList.add('show');
+        }
+
+        function sessGoConfirmed() {
+            document.getElementById('guestModal').classList.remove('show');
+            sessGo();
+        }
 
         function sessGo() {
             sessStart = Date.now();
-            document.getElementById('sessBtn').textContent = '⏹️ Kết thúc & chốt giờ';
+            document.getElementById('sessBtn').textContent = '\u23f9\ufe0f K\u1ebft th\u00fac session';
             document.getElementById('stopwatch').classList.add('running');
+            document.getElementById('liveCash').classList.add('running');
             document.getElementById('stopwatchSub').textContent =
-                'Bắt đầu lúc ' + new Date(sessStart).toLocaleTimeString('vi-VN');
+                '\ud83d\udeeb \u0110ang bay \u00b7 b\u1eaft \u0111\u1ea7u ' +
+                new Date(sessStart).toLocaleTimeString('vi-VN');
             sessTimer = setInterval(() => {
-                document.getElementById('stopwatch').textContent = fmtHms(Date.now() - sessStart);
+                const ms = Date.now() - sessStart;
+                document.getElementById('stopwatch').textContent = fmtHms(ms);
+                document.getElementById('liveCash').textContent =
+                    vnd(ms / 3600000 * WAGE_PER_HOUR);
             }, 250);
             dutyCardRender();
         }
@@ -2633,21 +3194,30 @@
             clearInterval(sessTimer);
             sessTimer = null;
             sessStart = null;
-            document.getElementById('sessBtn').textContent = '▶️ Bắt đầu ca bay';
+            document.getElementById('sessBtn').textContent = '\u25b6\ufe0f B\u1eaft \u0111\u1ea7u kh\u00e1ch v\u00e0o bay';
             document.getElementById('stopwatch').classList.remove('running');
+            document.getElementById('liveCash').classList.remove('running');
             document.getElementById('stopwatch').textContent = '00:00:00';
+            document.getElementById('liveCash').textContent = '0 \u20ab';
             if (!silent) {
                 const mins = Math.max(0, Math.round((end - start) / 60000));
-                const guest = (document.getElementById('sessGuest').value || '').trim() || 'Khách lẻ';
-                sessAdd({ date: isoLocal(new Date(start)),
-                          start: new Date(start).toTimeString().slice(0, 5),
-                          end: new Date(end).toTimeString().slice(0, 5),
-                          mins: mins, guest: guest, mode: 'live' });
+                const guest = (document.getElementById('sessGuest').value || '').trim()
+                    || 'Kh\u00e1ch l\u1ebb';
+                const rec = { date: isoLocal(new Date(start)),
+                              start: new Date(start).toTimeString().slice(0, 5),
+                              end: new Date(end).toTimeString().slice(0, 5),
+                              mins: mins, guest: guest, mode: 'live' };
+                if (dutyShift) {
+                    dutyShift.sessions.push(rec);
+                    try { localStorage.setItem('fd-duty-shift', JSON.stringify(dutyShift)); } catch (e) { }
+                }
+                sessAdd(rec);
                 document.getElementById('sessGuest').value = '';
                 document.getElementById('stopwatchSub').textContent =
-                    '✅ Đã chốt ' + mins + ' phút · ' + vnd(mins / 60 * WAGE_PER_HOUR);
+                    '\u2705 Ch\u1ed1t ' + mins + ' ph\u00fat \u00b7 ' +
+                    vnd(mins / 60 * WAGE_PER_HOUR) + ' \u2014 tr\u1edf l\u1ea1i tr\u1ef1c ch\u1edd';
             } else {
-                document.getElementById('stopwatchSub').textContent = 'Sẵn sàng đón khách';
+                document.getElementById('stopwatchSub').textContent = 'Tr\u1ef1c ch\u1edd';
             }
             dutyCardRender();
         }
@@ -2784,86 +3354,100 @@
         }
 
         function payRender() {
+            if (!staffUser) return;
             const db = staffDb();
             const mine = payRows(staffUser);
-            const mins = mine.reduce((s, r) => s + r.mins, 0);
-            const shifts = Object.keys(((db[staffUser] || {}).roster) || {}).length;
+            const shifts = ((db[staffUser] || {}).shifts) || [];
+
+            // live figures for the shift currently open
+            const liveGuest = dutyShift ? dutyGuestMin() : 0;
+            const live = dutyShift
+                ? shiftWage(liveGuest, SHIFT_MINUTES) : null;
+
+            const p3 = document.getElementById('pay3');
+            if (p3) {
+                p3.innerHTML = live
+                    ? ('<div class="pay3-card guest"><span>L\u01af\u01a0NG BAY KH\u00c1CH</span><b>' +
+                        vnd(live.guestPay) + '</b><i>' + live.guestMin.toFixed(0) + ' ph\u00fat</i></div>' +
+                       '<div class="pay3-card allow"><span>PH\u1ee4 C\u1ea4P CH\u1edc</span><b>' +
+                        vnd(live.allowance) + '</b><i>' + live.idleMin.toFixed(0) + ' ph\u00fat' +
+                        (live.guestMin >= ALLOWANCE_CUTOFF_MIN ? ' \u00b7 \u2265 3h n\u00ean kh\u00f4ng t\u00ednh' : '') +
+                        '</i></div>' +
+                       '<div class="pay3-card total"><span>T\u1ed4NG THU NH\u1eacP CA</span><b>' +
+                        vnd(live.total) + '</b><i>ca 4 ti\u1ebfng</i></div>')
+                    : '<div class="pay3-card idle"><span>CH\u01afA CHECK-IN CA</span><b>\u2014</b>' +
+                      '<i>ch\u1ecdn ca \u1edf tr\u00ean \u0111\u1ec3 b\u1eaft \u0111\u1ea7u</i></div>';
+            }
+
+            const paidMin = shifts.reduce((a, s) => a + s.guestMin, 0);
+            const paidTot = shifts.reduce((a, s) => a + s.total, 0);
             document.getElementById('payTiles').innerHTML =
-                opsTile('Ca đã đăng ký', String(shifts), 'Thứ 7 / Chủ Nhật') +
-                opsTile('Giờ bay hướng dẫn', (mins / 60).toFixed(2) + ' h',
-                    mins + ' phút · ' + mine.length + ' ca bay') +
-                opsTile('Tổng lương', vnd(mins / 60 * WAGE_PER_HOUR),
-                    '50.000 ₫ / giờ') +
+                opsTile('Ca \u0111\u00e3 ch\u1ed1t', String(shifts.length), '4 ti\u1ebfng / ca') +
+                opsTile('Gi\u1edd bay t\u00edch lu\u1ef9', (paidMin / 60).toFixed(2) + ' h',
+                    paidMin + ' ph\u00fat') +
+                opsTile('T\u1ed5ng thu nh\u1eadp', vnd(paidTot), 'bay + ph\u1ee5 c\u1ea5p') +
                 STAFF.filter(s => s.user !== staffUser).map(s => {
-                    const om = payRows(s.user).reduce((a, r) => a + r.mins, 0);
-                    return opsTile(s.name, (om / 60).toFixed(2) + ' h', vnd(om / 60 * WAGE_PER_HOUR));
+                    const os = (((staffDb())[s.user] || {}).shifts) || [];
+                    return opsTile(s.name, os.length + ' ca',
+                        vnd(os.reduce((a, x) => a + x.total, 0)));
                 }).join('');
 
-            const t = document.getElementById('payTable');
-            t.innerHTML = '';
+            const tb = document.getElementById('payTable');
+            tb.innerHTML = '';
             const head = document.createElement('tr');
-            ['NGÀY', 'BẮT ĐẦU', 'KẾT THÚC', 'THỜI LƯỢNG', 'KHÁCH', 'THÀNH TIỀN', ''].forEach(h => {
+            ['NG\u00c0Y', 'CA', 'BAY', 'CH\u1edc', 'L\u01af\u01a0NG BAY', 'PH\u1ee4 C\u1ea4P', 'T\u1ed4NG'].forEach(h => {
                 const th = document.createElement('th');
                 th.textContent = h;
                 head.appendChild(th);
             });
-            t.appendChild(head);
-            if (!mine.length) {
+            tb.appendChild(head);
+            if (!shifts.length) {
                 const tr = document.createElement('tr');
                 const td = document.createElement('td');
                 td.colSpan = 7;
                 td.className = 'navlog-empty';
-                td.textContent = 'Chưa có ca bay nào được ghi nhận.';
+                td.textContent = mine.length
+                    ? 'C\u00f3 ' + mine.length + ' session nh\u01b0ng ch\u01b0a ca n\u00e0o \u0111\u01b0\u1ee3c ch\u1ed1t (check-out \u0111\u1ec3 l\u01b0u).'
+                    : 'Ch\u01b0a c\u00f3 ca n\u00e0o \u0111\u01b0\u1ee3c ch\u1ed1t.';
                 tr.appendChild(td);
-                t.appendChild(tr);
+                tb.appendChild(tr);
                 return;
             }
-            mine.forEach((r, i) => {
+            shifts.slice().reverse().forEach(s => {
                 const tr = document.createElement('tr');
-                [r.date, r.start, r.end,
-                 Math.floor(r.mins / 60) + 'h' + two(r.mins % 60),
-                 r.guest, vnd(r.mins / 60 * WAGE_PER_HOUR),
-                 r.mode === 'live' ? '⏱️' : '✍️'
+                [s.date, s.label + ' ' + s.from + '\u2013' + s.to,
+                 Math.floor(s.guestMin / 60) + 'h' + two(s.guestMin % 60),
+                 Math.floor(s.idleMin / 60) + 'h' + two(s.idleMin % 60),
+                 vnd(s.guestPay), vnd(s.allowance), vnd(s.total)
                 ].forEach((v, j) => {
                     const td = document.createElement('td');
                     td.textContent = v;
                     if (j === 0) td.className = 'navlog-id';
                     tr.appendChild(td);
                 });
-                const del = tr.lastChild;
-                del.style.cursor = 'pointer';
-                del.title = 'Xoá dòng này';
-                del.onclick = () => {
-                    if (!confirm('Xoá ca bay ngày ' + r.date + ' (' + r.guest + ')?')) return;
-                    const d2 = staffRec(staffUser);
-                    const idx = d2[staffUser].sessions.findIndex(x =>
-                        x.date === r.date && x.start === r.start && x.guest === r.guest);
-                    if (idx >= 0) d2[staffUser].sessions.splice(idx, 1);
-                    staffSave(d2);
-                    payRender();
-                };
-                t.appendChild(tr);
+                tb.appendChild(tr);
             });
         }
 
         function payExportCsv() {
-            const lines = [['Nhan vien', 'Ngay', 'Bat dau', 'Ket thuc', 'So phut',
-                            'So gio', 'Khach', 'Thanh tien (VND)', 'Nguon'].join(',')];
+            const lines = [['Nhan vien', 'Ngay', 'Ca', 'Gio bat dau', 'Gio ket thuc',
+                            'Phut bay khach', 'Phut truc cho', 'Luong bay (VND)',
+                            'Phu cap (VND)', 'Tong ca (VND)', 'Chi tiet khach'].join(',')];
             STAFF.forEach(s => {
-                payRows(s.user).slice().reverse().forEach(r => {
-                    lines.push([s.name, r.date, r.start, r.end, r.mins,
-                                (r.mins / 60).toFixed(2), '"' + String(r.guest).replace(/"/g, '""') + '"',
-                                Math.round(r.mins / 60 * WAGE_PER_HOUR),
-                                r.mode === 'live' ? 'Bam gio' : 'Nhap tay'].join(','));
+                const shifts = (((staffDb())[s.user] || {}).shifts) || [];
+                shifts.forEach(sh => {
+                    const guests = (sh.sessions || [])
+                        .map(x => x.guest + ' (' + x.mins + 'p)').join('; ');
+                    lines.push([s.name, sh.date, sh.label, sh.from, sh.to,
+                                sh.guestMin, sh.idleMin, sh.guestPay, sh.allowance,
+                                sh.total, '"' + guests.replace(/"/g, '""') + '"'].join(','));
                 });
+                const tot = shifts.reduce((a, x) => a + x.total, 0);
+                const gm = shifts.reduce((a, x) => a + x.guestMin, 0);
+                lines.push(['TONG ' + s.name, '', shifts.length + ' ca', '', '',
+                            gm, '', '', '', tot, ''].join(','));
             });
-            STAFF.forEach(s => {
-                const m = payRows(s.user).reduce((a, r) => a + r.mins, 0);
-                lines.push(['TONG ' + s.name, '', '', '', m, (m / 60).toFixed(2), '',
-                            Math.round(m / 60 * WAGE_PER_HOUR), ''].join(','));
-            });
-            // BOM so Excel opens the Vietnamese text correctly
-            const blob = new Blob(['﻿' + lines.join('\r\n')],
+            const blob = new Blob(['\ufeff' + lines.join('\r\n')],
                 { type: 'text/csv;charset=utf-8;' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -3241,6 +3825,7 @@
             document.getElementById('metarSearch').addEventListener('input', metarRender);
 
             // dispatch / W&B
+            fdNavRender();
             routeChipsRender();
             try {
                 const u = localStorage.getItem('fd-sbuser');
