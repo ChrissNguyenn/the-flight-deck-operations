@@ -95,7 +95,12 @@ except Exception:
     pass
 
 if old_storms is None or now.minute % 5 == 2 or "--storms" in sys.argv:
-    UA = {"User-Agent": "Mozilla/5.0 (flight-deck-ops)"}
+    # JTWC (and some NOAA edges) now 403 anything that does not look like
+    # a browser, which silently emptied the tropical-cyclone list.
+    UA = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                         "AppleWebKit/537.36 (KHTML, like Gecko) "
+                         "Chrome/124.0 Safari/537.36"),
+          "Accept": "*/*", "Accept-Language": "en-US,en;q=0.9"}
 
     def _get(url, timeout=20):
         r = requests.get(url, headers=UA, timeout=timeout)

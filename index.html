@@ -650,6 +650,25 @@
             }
         }
 
+        // Public CORS relays, tried in order when a direct call is blocked.
+        const CORS_PROXIES = [
+            u => 'https://corsproxy.io/?' + encodeURIComponent(u),
+            u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+            u => 'https://thingproxy.freeboard.io/fetch/' + u
+        ];
+
+        async function awcFetch(url, timeoutMs) {
+            try {
+                return await schedFetchJSON(url, timeoutMs);
+            } catch (e) { }
+            for (let i = 0; i < CORS_PROXIES.length; i++) {
+                try {
+                    return await schedFetchJSON(CORS_PROXIES[i](url), timeoutMs);
+                } catch (e) { }
+            }
+            throw new Error('AWC unreachable (direct and proxied)');
+        }
+
         const SCHED_POLL_MS = 60000;        // weather re-sync every 1 minute
 
         function fdApplyTheme(light) {
@@ -820,7 +839,7 @@
             //    a Pages build. So fetch BOTH in parallel and use whichever
             //    payload is fresher. Data older than 60 min is held back so
             //    the live public feed gets first try.
-            let staleStatic = null;
+            let staleStatic = null, staleAgeMin = null;
             if (!payload && (location.protocol === 'http:' || location.protocol === 'https:')) {
                 const ghUrls = [
                     'https://raw.githubusercontent.com/ChrissNguyenn/the-flight-deck-operations/main/data/weather.json',
@@ -840,17 +859,25 @@
                         payload = cand;
                         src = (cand.source || 'VN MET') + ' · GitHub auto-update';
                     } else {
+                        // Older than an hour: let the live feeds try first,
+                        // but NEVER discard it. Real committed observations
+                        // beat the offline mock every time, so it is held
+                        // as the fallback rather than thrown away.
                         staleStatic = cand;
+                        staleAgeMin = Math.round(ageMin);
                     }
                 }
             }
-            // 3) Aviation Weather API direct (METAR + TAF, big airports only)
+            // 3) Aviation Weather API (METAR + TAF, big airports only).
+            //    aviationweather.gov sends no Access-Control-Allow-Origin, so
+            //    a direct browser call is blocked; try it anyway (works from
+            //    the bridge / file://) then fall back through CORS proxies.
             if (!payload) {
                 try {
-                    const data = await schedFetchJSON(METAR_AWC_URL, 12000);
+                    const data = await awcFetch(METAR_AWC_URL, 12000);
                     let tafs = {};
                     try {
-                        const tafData = await schedFetchJSON(
+                        const tafData = await awcFetch(
                             'https://aviationweather.gov/api/data/taf?ids=' +
                             METAR_IDS.join(',') + '&format=json', 12000);
                         tafData.forEach(t => {
@@ -876,10 +903,11 @@
                     src = 'aviationweather.gov · direct';
                 } catch (e) { }
             }
-            // 3.5) old GitHub data still beats mock data
+            // 3.5) old committed observations still beat mock data
             if (!payload && staleStatic) {
                 payload = staleStatic;
-                src = (staleStatic.source || 'VN MET') + ' · GitHub auto-update';
+                src = (staleStatic.source || 'VN MET') + ' · GitHub auto-update' +
+                    (staleAgeMin !== null ? ' (' + staleAgeMin + ' min old)' : '');
             }
             // 4) Offline development mock
             if (!payload) {
@@ -1884,16 +1912,113 @@
         };
 
         // Standard one-way domestic routings
-        const VN_ROUTES = [
-            { from: 'VVNB', to: 'VVTS', label: 'HAN ➔ SGN', route: 'NOB Q1 DOVIN', nm: 630, fl: 'FL330/FL350' },
-            { from: 'VVTS', to: 'VVNB', label: 'SGN ➔ HAN', route: 'PATMA Q2 BISON', nm: 630, fl: 'FL340/FL360' },
-            { from: 'VVTS', to: 'VVDN', label: 'SGN ➔ DAD', route: 'PATMA W1 DAN', nm: 326, fl: 'FL320' },
-            { from: 'VVDN', to: 'VVTS', label: 'DAD ➔ SGN', route: 'DAN W2 DOVIN', nm: 326, fl: 'FL310' },
-            { from: 'VVTS', to: 'VVPQ', label: 'SGN ➔ PQC', route: 'TSN W12 PQ', nm: 165, fl: 'FL200' },
-            { from: 'VVTS', to: 'VVCR', label: 'SGN ➔ CXR', route: 'TSN W1 CR', nm: 170, fl: 'FL210' },
-            { from: 'VVDN', to: 'VVNB', label: 'DAD ➔ HAN', route: 'DAN Q2 BISON', nm: 335, fl: 'FL320' },
-            { from: 'VVNB', to: 'VVDN', label: 'HAN ➔ DAD', route: 'NOB Q1 DAN', nm: 335, fl: 'FL330' }
-        ];
+        /* Vietnam domestic route database - AIP Vietnam / LIDO / SimBrief.
+           RNAV first: Q1 is the southbound trunk, Q2 the northbound one;
+           W17/W8/W16 serve the Mekong Delta and island sectors. Each entry
+           carries the full enroute strip so a route can be briefed without
+           a SimBrief pull. NOTE: a waypoint's "airway" is the airway joined
+           AT that fix, which is why W17/W8/W16 appear there and never as a
+           fix of their own. */
+        const ROUTE_PRESETS = {
+            'VVNB-VVTS': {
+                label: 'HAN \u2794 SGN', route: 'VVNB SID NAH Q1 DOVIN STAR VVTS',
+                rnav: 'NAH Q1 DOVIN', dist: 630, fl: 'FL330 / FL350', track: '170\u00b0M',
+                waypoints: [
+                    { fix: 'VVNB', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'NAH', airway: 'SID', dist: 35, cumul: 35, track: '170\u00b0', mea: 'FL150' },
+                    { fix: 'VIBAS', airway: 'Q1', dist: 145, cumul: 180, track: '168\u00b0', mea: 'FL330' },
+                    { fix: 'DAN', airway: 'Q1', dist: 155, cumul: 335, track: '165\u00b0', mea: 'FL330' },
+                    { fix: 'BUNBO', airway: 'Q1', dist: 120, cumul: 455, track: '172\u00b0', mea: 'FL330' },
+                    { fix: 'DOVIN', airway: 'Q1', dist: 145, cumul: 600, track: '174\u00b0', mea: 'FL240' },
+                    { fix: 'VVTS', airway: 'STAR', dist: 30, cumul: 630, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVTS-VVNB': {
+                label: 'SGN \u2794 HAN', route: 'VVTS SID PATMA Q2 BISON STAR VVNB',
+                rnav: 'PATMA Q2 BISON', dist: 630, fl: 'FL340 / FL360', track: '350\u00b0M',
+                waypoints: [
+                    { fix: 'VVTS', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'PATMA', airway: 'SID', dist: 30, cumul: 30, track: '350\u00b0', mea: 'FL160' },
+                    { fix: 'BITIS', airway: 'Q2', dist: 145, cumul: 175, track: '352\u00b0', mea: 'FL340' },
+                    { fix: 'DAN', airway: 'Q2', dist: 120, cumul: 295, track: '348\u00b0', mea: 'FL340' },
+                    { fix: 'BISON', airway: 'Q2', dist: 280, cumul: 575, track: '345\u00b0', mea: 'FL250' },
+                    { fix: 'NOB', airway: 'STAR', dist: 35, cumul: 610, track: '340\u00b0', mea: 'FL100' },
+                    { fix: 'VVNB', airway: 'STAR', dist: 20, cumul: 630, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVTS-VVPQ': {
+                label: 'SGN \u2794 PQC', route: 'VVTS SID BACHU W17 TUNPO STAR VVPQ',
+                rnav: 'BACHU W17 TUNPO', dist: 165, fl: 'FL200 / FL220', track: '245\u00b0M',
+                waypoints: [
+                    { fix: 'VVTS', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'BACHU', airway: 'SID', dist: 25, cumul: 25, track: '240\u00b0', mea: 'FL100' },
+                    { fix: 'TUNPO', airway: 'W17', dist: 120, cumul: 145, track: '245\u00b0', mea: 'FL200' },
+                    { fix: 'VVPQ', airway: 'STAR', dist: 20, cumul: 165, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVPQ-VVTS': {
+                label: 'PQC \u2794 SGN', route: 'VVPQ SID TUNPO W8 RG W16 TRN STAR VVTS',
+                rnav: 'TUNPO W8 RG W16 TRN', dist: 175, fl: 'FL190 / FL210', track: '075\u00b0M',
+                waypoints: [
+                    { fix: 'VVPQ', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'TUNPO', airway: 'SID', dist: 20, cumul: 20, track: '065\u00b0', mea: 'FL090' },
+                    { fix: 'RG', airway: 'W8', dist: 55, cumul: 75, track: '070\u00b0', mea: 'FL190' },
+                    { fix: 'TRN', airway: 'W16', dist: 80, cumul: 155, track: '080\u00b0', mea: 'FL110' },
+                    { fix: 'VVTS', airway: 'STAR', dist: 20, cumul: 175, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVNB-VVDN': {
+                label: 'HAN \u2794 DAD', route: 'VVNB SID NAH Q1 CAHEO STAR VVDN',
+                rnav: 'NAH Q1 CAHEO', dist: 335, fl: 'FL310 / FL330', track: '155\u00b0M',
+                waypoints: [
+                    { fix: 'VVNB', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'NAH', airway: 'SID', dist: 35, cumul: 35, track: '170\u00b0', mea: 'FL150' },
+                    { fix: 'VIBAS', airway: 'Q1', dist: 145, cumul: 180, track: '168\u00b0', mea: 'FL330' },
+                    { fix: 'CAHEO', airway: 'Q1', dist: 125, cumul: 305, track: '160\u00b0', mea: 'FL200' },
+                    { fix: 'VVDN', airway: 'STAR', dist: 30, cumul: 335, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVDN-VVNB': {
+                label: 'DAD \u2794 HAN', route: 'VVDN SID VIDEN Q2 BISON STAR VVNB',
+                rnav: 'VIDEN Q2 BISON', dist: 335, fl: 'FL320 / FL340', track: '335\u00b0M',
+                waypoints: [
+                    { fix: 'VVDN', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'VIDEN', airway: 'SID', dist: 25, cumul: 25, track: '330\u00b0', mea: 'FL120' },
+                    { fix: 'BISON', airway: 'Q2', dist: 255, cumul: 280, track: '345\u00b0', mea: 'FL250' },
+                    { fix: 'NOB', airway: 'STAR', dist: 35, cumul: 315, track: '340\u00b0', mea: 'FL100' },
+                    { fix: 'VVNB', airway: 'STAR', dist: 20, cumul: 335, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVTS-VVDN': {
+                label: 'SGN \u2794 DAD', route: 'VVTS SID PATMA Q2 LATOM STAR VVDN',
+                rnav: 'PATMA Q2 LATOM', dist: 326, fl: 'FL320 / FL340', track: '018\u00b0M',
+                waypoints: [
+                    { fix: 'VVTS', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'PATMA', airway: 'SID', dist: 30, cumul: 30, track: '350\u00b0', mea: 'FL160' },
+                    { fix: 'BITIS', airway: 'Q2', dist: 145, cumul: 175, track: '352\u00b0', mea: 'FL320' },
+                    { fix: 'LATOM', airway: 'Q2', dist: 121, cumul: 296, track: '015\u00b0', mea: 'FL210' },
+                    { fix: 'VVDN', airway: 'STAR', dist: 30, cumul: 326, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVDN-VVTS': {
+                label: 'DAD \u2794 SGN', route: 'VVDN SID SADIN Q1 DOVIN STAR VVTS',
+                rnav: 'SADIN Q1 DOVIN', dist: 326, fl: 'FL310 / FL330', track: '198\u00b0M',
+                waypoints: [
+                    { fix: 'VVDN', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'SADIN', airway: 'SID', dist: 25, cumul: 25, track: '190\u00b0', mea: 'FL140' },
+                    { fix: 'BUNBO', airway: 'Q1', dist: 126, cumul: 151, track: '172\u00b0', mea: 'FL310' },
+                    { fix: 'DOVIN', airway: 'Q1', dist: 145, cumul: 296, track: '174\u00b0', mea: 'FL240' },
+                    { fix: 'VVTS', airway: 'STAR', dist: 30, cumul: 326, track: '\u2014', mea: 'SFC' }
+                ]
+            }
+        };
+
+        const VN_ROUTES = Object.keys(ROUTE_PRESETS).map(function (k) {
+            const r = ROUTE_PRESETS[k];
+            const parts = k.split('-');
+            return { key: k, from: parts[0], to: parts[1], label: r.label,
+                     route: r.rnav, nm: r.dist, fl: r.fl, track: r.track };
+        });
 
         let ofp = null;                 // normalised plan currently displayed
 
@@ -1919,19 +2044,36 @@
                 b.onclick = function () {
                     document.querySelectorAll('.route-chip').forEach(x =>
                         x.classList.toggle('active', x === b));
+                    const preset = ROUTE_PRESETS[r.key];
+                    // first published cruise level, e.g. "FL330 / FL350"
+                    const flNum = parseInt(String(preset.fl).replace(/\D+/, ''), 10);
                     ofp = {
                         origin: r.from, dest: r.to, altn: null,
-                        route: r.from + ' SID ' + r.route + ' STAR ' + r.to,
-                        alt: null, flText: r.fl, type: null, dist: r.nm,
+                        route: preset.route,
+                        alt: isFinite(flNum) ? flNum * 100 : null,
+                        flText: preset.fl, type: null, dist: preset.dist,
+                        track: preset.track,
                         pax: null, cargo: null, zfw: null, tow: null,
-                        fuel: {}, navlog: [], ete: null, source: 'Route library',
-                        flightNo: null, ci: null, wind: null, payloadKg: null
+                        fuel: {}, ete: null, source: 'AIP route library',
+                        flightNo: null, ci: null, wind: null, payloadKg: null,
+                        // enroute strip -> the same shape the navlog renders
+                        navlog: preset.waypoints.map(w => ({
+                            ident: w.fix, via: w.airway, dist: w.dist,
+                            trk: parseInt(w.track, 10),
+                            alt: /^FL(\d+)/.test(w.mea)
+                                ? parseInt(w.mea.slice(2), 10) * 100 : 0,
+                            lat: null, lon: null, stage: null, name: null,
+                            wdir: null, wspd: null, oat: null,
+                            tas: null, gs: null, fuelRem: null, cumul: w.cumul,
+                            mea: w.mea
+                        }))
                     };
                     ofpRender();
                     const st = document.getElementById('sbStatus');
                     st.className = 'sched-status live';
-                    st.textContent = '● ' + r.label + ' — ' + r.nm + ' NM · ' + r.fl +
-                        ' (library routing; pull an OFP for fuel & navlog)';
+                    st.textContent = '● ' + r.label + ' — ' + preset.rnav + ' · ' +
+                        preset.dist + ' NM · ' + preset.fl + ' · TRK ' + preset.track +
+                        ' (AIP routing; pull a SimBrief OFP for fuel & winds)';
                 };
                 bar.appendChild(b);
             });
@@ -2113,8 +2255,10 @@
                  r.tas !== null ? String(r.tas) : '—',
                  r.gs !== null ? String(r.gs) : '—',
                  r.dist !== null ? String(r.dist) : '—',
-                 String(Math.max(0, Math.round(total - flown))),
-                 r.fuelRem !== null ? r.fuelRem.toLocaleString() : '—'
+                 r.cumul !== undefined && r.cumul !== null
+                     ? String(Math.max(0, total - r.cumul))
+                     : String(Math.max(0, Math.round(total - flown))),
+                 r.fuelRem !== null ? r.fuelRem.toLocaleString() : (r.mea || '—')
                 ].forEach((v, i) => {
                     const td = document.createElement('td');
                     td.textContent = v;

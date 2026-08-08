@@ -102,22 +102,28 @@ jobs:
               radar_at=$SECONDS
               rm -rf /tmp/radar && mkdir -p /tmp/radar
               if python fetch_radar_frames.py /tmp/radar; then
-                rm -rf /tmp/rmirror
-                git worktree remove --force /tmp/rmirror 2>/dev/null || true
-                git worktree add --detach /tmp/rmirror >/dev/null 2>&1
-                ( cd /tmp/rmirror
-                  git checkout --orphan wx-radar >/dev/null 2>&1
-                  git rm -rqf . >/dev/null 2>&1 || true
-                  cp -r /tmp/radar/* .
-                  git add -A
-                  git -c user.name="acuro-weather-bot" \
-                      -c user.email="actions@users.noreply.github.com" \
-                      commit -qm "radar mirror $(date -u '+%d %b %H:%MZ')" || true
-                  git push -qf origin wx-radar || echo "::warning::radar push failed"
-                )
-                git worktree remove --force /tmp/rmirror 2>/dev/null || true
+                # Build the orphan commit with a THROWAWAY index + git
+                # plumbing. The previous version used `git worktree`, but it
+                # deleted the directory before deregistering it, so the next
+                # `git worktree add` hit a stale registration, exited 128 and
+                # (unguarded, under `bash -e`) killed the whole loop on the
+                # second radar cycle. Plumbing never switches branches and
+                # cannot disturb the checkout of main.
+                (
+                  set -e
+                  export GIT_INDEX_FILE=/tmp/radar.index
+                  rm -f "$GIT_INDEX_FILE"
+                  git --work-tree=/tmp/radar add -A
+                  tree=$(git write-tree)
+                  commit=$(git -c user.name="acuro-weather-bot" \
+                               -c user.email="actions@users.noreply.github.com" \
+                               commit-tree "$tree" \
+                               -m "radar mirror $(date -u '+%d %b %H:%MZ')")
+                  git push -qf origin "$commit:refs/heads/wx-radar"
+                ) || echo "::warning::radar mirror publish failed — keeping previous frames"
+                rm -f /tmp/radar.index
               else
-                echo "::warning::radar mirror failed — keeping previous frames"
+                echo "::warning::radar fetch failed — keeping previous frames"
               fi
             fi
 

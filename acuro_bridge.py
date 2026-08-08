@@ -166,8 +166,31 @@ def parse_metar(raw):
 # ----------------------------------------------------------------------
 # MET portal session (persistent, auto re-login)
 # ----------------------------------------------------------------------
+BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+
+
+def _browser_headers(base):
+    """Portal-friendly headers. Both MET portals sit behind filters that
+    reject requests without a matching Referer/Origin, and answer with a
+    302 back to the login form instead of the page that was asked for."""
+    root = base.rsplit("/", 1)[0] if base else ""
+    return {
+        "User-Agent": BROWSER_UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                  "image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "vi,en-US;q=0.9,en;q=0.8",
+        "Referer": base or "",
+        "Origin": root,
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+
+MAX_RETRIES = 3            # portal calls: retry (with re-login) before failing
+
 _session = requests.Session()
-_session.headers["User-Agent"] = "Mozilla/5.0 (ACURO-EFB-Bridge)"
+_session.headers.update(_browser_headers(MET_BASE))
 _session_lock = threading.Lock()
 
 # Last full TAF scan — reused between refreshes (and seeded from the
@@ -189,14 +212,34 @@ def _met_login():
 
 
 def _met_get(params):
-    """GET a portal page; re-login automatically if the session expired."""
-    with _session_lock:
-        r = _session.get(MET_BASE, params=params, timeout=HTTP_TIMEOUT)
-        if "txtUsername" in r.text:          # bounced to the login form
-            _met_login()
-            r = _session.get(MET_BASE, params=params, timeout=HTTP_TIMEOUT)
-        r.raise_for_status()
-        return r.text
+    """GET a portal page, re-logging in and retrying on a dropped session.
+
+    The portal answers an expired session with a 302 to the login form
+    rather than an error, so a bare request silently returns the login
+    page and the caller ends up raising "no reports parsed"."""
+    last = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            with _session_lock:
+                r = _session.get(MET_BASE, params=params,
+                                 timeout=HTTP_TIMEOUT, allow_redirects=True)
+                if "txtUsername" in r.text:      # bounced to the login form
+                    _met_login()
+                    r = _session.get(MET_BASE, params=params,
+                                     timeout=HTTP_TIMEOUT, allow_redirects=True)
+                r.raise_for_status()
+                if "txtUsername" in r.text:
+                    raise RuntimeError("AMO session could not be re-established")
+                return r.text
+        except Exception as exc:
+            last = exc
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(1.5 * (attempt + 1))
+                try:
+                    _met_login()
+                except Exception:
+                    pass
+    raise RuntimeError(f"AMO portal unreachable after {MAX_RETRIES} tries: {last}")
 
 
 def _slot_now():
@@ -418,7 +461,7 @@ _cache_lock = threading.Lock()
 # Tan Son Nhat AMC portal (PRIMARY) — METAR + radar/SIGMET/WINTEM/SigWx
 # ----------------------------------------------------------------------
 _tsn_session = requests.Session()
-_tsn_session.headers["User-Agent"] = "Mozilla/5.0 (ACURO-EFB-Bridge)"
+_tsn_session.headers.update(_browser_headers(TSN_BASE))
 _tsn_lock = threading.Lock()
 
 TSN_ROOT = TSN_BASE.rsplit("/", 1)[0] if TSN_BASE else ""
@@ -447,13 +490,29 @@ def _tsn_get(page_or_params):
     """GET a TSN portal page, re-logging in if the session expired."""
     params = (dict(zip(("cat", "sub"), TSN_PAGES[page_or_params]))
               if isinstance(page_or_params, str) else page_or_params)
-    with _tsn_lock:
-        r = _tsn_session.get(TSN_BASE, params=params, timeout=HTTP_TIMEOUT)
-        if "txtUsername" in r.text:            # bounced to the login form
-            _tsn_login()
-            r = _tsn_session.get(TSN_BASE, params=params, timeout=HTTP_TIMEOUT)
-        r.raise_for_status()
-        return r.text
+    last = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            with _tsn_lock:
+                r = _tsn_session.get(TSN_BASE, params=params,
+                                     timeout=HTTP_TIMEOUT, allow_redirects=True)
+                if "txtUsername" in r.text:        # bounced to the login form
+                    _tsn_login()
+                    r = _tsn_session.get(TSN_BASE, params=params,
+                                         timeout=HTTP_TIMEOUT, allow_redirects=True)
+                r.raise_for_status()
+                if "txtUsername" in r.text:
+                    raise RuntimeError("TSN session could not be re-established")
+                return r.text
+        except Exception as exc:
+            last = exc
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(1.5 * (attempt + 1))
+                try:
+                    _tsn_login()
+                except Exception:
+                    pass
+    raise RuntimeError(f"TSN portal unreachable after {MAX_RETRIES} tries: {last}")
 
 
 def _tsn_asset(path):
@@ -669,13 +728,37 @@ def api_health():
     return {"ok": True}
 
 
+LAST_GOOD = BASE_DIR / "data" / "weather.json"
+
+
 @app.get("/api/weather/vietnam")
 def api_weather():
+    """Never 502s. TSN AMC -> Da Nang AMO -> aviationweather.gov -> memory
+    cache -> last good file on disk. A dead source degrades the payload,
+    it does not take the EFB down mid-briefing."""
     try:
-        return JSONResponse(get_weather())
+        payload = get_weather()
+        if payload and payload.get("stations"):
+            return JSONResponse(payload)
     except Exception as exc:
-        raise HTTPException(status_code=502,
-                            detail=f"weather sources unreachable: {exc}")
+        print(f"[bridge] live weather unavailable: {exc}")
+    with _cache_lock:
+        cached = _cache["payload"]
+    if cached and cached.get("stations"):
+        out = dict(cached)
+        out["degraded"] = "serving cached weather — live sources unreachable"
+        return JSONResponse(out)
+    try:
+        disk = json.loads(LAST_GOOD.read_text(encoding="utf-8"))
+        if disk.get("stations"):
+            disk["degraded"] = "serving last saved weather — live sources unreachable"
+            return JSONResponse(disk)
+    except Exception:
+        pass
+    return JSONResponse({"updated": None, "source": "unavailable",
+                         "stations": [],
+                         "degraded": "no weather source reachable"},
+                        status_code=200)
 
 
 def fetch_satellite_images(dest_dir):
