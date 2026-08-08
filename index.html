@@ -1967,6 +1967,50 @@
                     { fix: 'VVTS', airway: 'STAR', dist: 20, cumul: 175, track: '\u2014', mea: 'SFC' }
                 ]
             },
+            'VVTS-VVCR': {
+                label: 'SGN \u2794 CXR', route: 'VVTS SID BIXEX W15 BANKE STAR VVCR',
+                rnav: 'BIXEX W15 BANKE', dist: 175, fl: 'FL190 / FL210', track: '065\u00b0M',
+                waypoints: [
+                    { fix: 'VVTS', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'BIXEX', airway: 'SID', dist: 30, cumul: 30, track: '065\u00b0', mea: 'FL110' },
+                    { fix: 'BANKE', airway: 'W15', dist: 120, cumul: 150, track: '065\u00b0', mea: 'FL190' },
+                    { fix: 'VVCR', airway: 'STAR', dist: 25, cumul: 175, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVCR-VVTS': {
+                label: 'CXR \u2794 SGN', route: 'VVCR SID LKH W15 VETOM STAR VVTS',
+                rnav: 'LKH W15 VETOM', dist: 175, fl: 'FL200 / FL220', track: '245\u00b0M',
+                waypoints: [
+                    { fix: 'VVCR', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'LKH', airway: 'SID', dist: 25, cumul: 25, track: '250\u00b0', mea: 'FL100' },
+                    { fix: 'VETOM', airway: 'W15', dist: 125, cumul: 150, track: '245\u00b0', mea: 'FL200' },
+                    { fix: 'VVTS', airway: 'STAR', dist: 25, cumul: 175, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVNB-VVCR': {
+                label: 'HAN \u2794 CXR', route: 'VVNB SID NAH Q1 DAN W2 KAMGO STAR VVCR',
+                rnav: 'NAH Q1 DAN W2 KAMGO', dist: 594, fl: 'FL330 / FL350', track: '160\u00b0M',
+                waypoints: [
+                    { fix: 'VVNB', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'NAH', airway: 'SID', dist: 35, cumul: 35, track: '170\u00b0', mea: 'FL150' },
+                    { fix: 'VIBAS', airway: 'Q1', dist: 145, cumul: 180, track: '168\u00b0', mea: 'FL330' },
+                    { fix: 'DAN', airway: 'Q1', dist: 155, cumul: 335, track: '165\u00b0', mea: 'FL330' },
+                    { fix: 'KAMGO', airway: 'W2', dist: 234, cumul: 569, track: '158\u00b0', mea: 'FL330' },
+                    { fix: 'VVCR', airway: 'STAR', dist: 25, cumul: 594, track: '\u2014', mea: 'SFC' }
+                ]
+            },
+            'VVCR-VVNB': {
+                label: 'CXR \u2794 HAN', route: 'VVCR SID KAMGO W2 DAN Q2 BISON STAR VVNB',
+                rnav: 'KAMGO W2 DAN Q2 BISON', dist: 594, fl: 'FL340 / FL360', track: '340\u00b0M',
+                waypoints: [
+                    { fix: 'VVCR', airway: 'DEP', dist: 0, cumul: 0, track: '\u2014', mea: 'SFC' },
+                    { fix: 'KAMGO', airway: 'SID', dist: 25, cumul: 25, track: '338\u00b0', mea: 'FL120' },
+                    { fix: 'DAN', airway: 'W2', dist: 234, cumul: 259, track: '340\u00b0', mea: 'FL340' },
+                    { fix: 'BISON', airway: 'Q2', dist: 280, cumul: 539, track: '345\u00b0', mea: 'FL340' },
+                    { fix: 'NOB', airway: 'STAR', dist: 35, cumul: 574, track: '340\u00b0', mea: 'FL100' },
+                    { fix: 'VVNB', airway: 'STAR', dist: 20, cumul: 594, track: '\u2014', mea: 'SFC' }
+                ]
+            },
             'VVNB-VVDN': {
                 label: 'HAN \u2794 DAD', route: 'VVNB SID NAH Q1 CAHEO STAR VVDN',
                 rnav: 'NAH Q1 CAHEO', dist: 335, fl: 'FL310 / FL330', track: '155\u00b0M',
